@@ -135,6 +135,14 @@ textarea.field{min-height:84px;resize:vertical}
 .paper .r{text-align:right}
 .paper mark{background:var(--accent-weak);color:var(--text);padding:0 4px;border-radius:4px;white-space:nowrap}
 .paper-cap{color:var(--muted);font-size:14px;margin-bottom:6px}
+/* รุ่น 10: ใบตอบรับกับแบบฟอร์มแจ้งรายละเอียดออกพร้อมหนังสือ พับไว้ให้ปุ่มส่งไม่ถูกดันลงไกล */
+/* หัวพับไม่ใช้ flex เพราะก้อนห้ามตัดคำกลายเป็นคอลัมน์แยกกัน (ภาพ 390 รุ่น 10 ร่างแรก) */
+.sheets > summary{cursor:pointer;color:var(--accent);min-height:44px;padding:10px 0;font-size:15px;line-height:1.5}
+.sheet{background:#FFFFFF;border:1px solid var(--line);border-radius:var(--r-md);padding:16px 18px;font-size:14px;line-height:1.7;margin-top:10px}
+.sheet .c{font-weight:600;text-align:center}
+.sheet p + p,.sheet ul{margin-top:6px}
+.sheet mark{background:var(--accent-weak);color:var(--text);padding:0 4px;border-radius:4px;white-space:nowrap}
+.paper mark.w,.sheet mark.w{white-space:normal}
 
 .docs{display:grid;gap:8px}
 .doc{display:grid;grid-template-columns:1fr auto;gap:12px;align-items:center;padding:10px 14px;background:var(--soft);border-radius:var(--r-md)}
@@ -234,7 +242,34 @@ function parseTh(s) {
   return mi < 0 ? null : day(+m[3], mi + 1, +m[1]);
 }
 const opts = (list, sel) => list.map(o => `<option${o === sel ? ' selected' : ''}>${o}</option>`).join('');
-const TERMS = ['1 ปี', '3 ปี', '5 ปี'], PAYS = ['รายปี', 'รายเดือน'];
+// รุ่น 10: หนังสือจริงเสนอชำระราย 3 เดือนโดยการโอนเงินเข้าบัญชีธนาคาร (แบบฟอร์มที่พี่ปอนด์ส่งมา 02/10/2026)
+const TERMS = ['1 ปี', '3 ปี', '5 ปี'], PAYS = ['รายปี', 'ราย 3 เดือน', 'รายเดือน'];
+// ทางส่งหนังสือกับทางที่ผู้ให้เช่าตอบกลับ ตามคำเล่าของเจ้าของงาน (ส่งไปรษณีย์แล้วส่งกลับ หรือส่งอีเมลแล้วตอบอีเมล)
+const VIAS = ['ไปรษณีย์', 'อีเมล'], RVIAS = ['ไปรษณีย์', 'อีเมล', 'ต่อหน้า'];
+const viaText = v => v === 'ต่อหน้า' ? 'ต่อหน้า' : 'ทาง' + v;
+// ผู้ให้เช่าไม่ต่อแต่บริษัทยังรื้อถอนไม่ทัน ขอขยายระยะเวลา คำเล่ายกตัวอย่าง 3 หรือ 6 เดือน
+const EXT_MONTHS = ['3 เดือน', '6 เดือน', '9 เดือน', '12 เดือน'];
+const plusMonths = (d, n) => new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + n, d.getUTCDate()));
+// ค่าเช่าเป็นตัวอักษรแบบที่หนังสือจริงพิมพ์ (เจ็ดหมื่นห้าร้อยหกสิบบาทถ้วน) ตัวตรวจเทียบกับ num2words ภาษาไทย
+const TH_DIG = ['', 'หนึ่ง', 'สอง', 'สาม', 'สี่', 'ห้า', 'หก', 'เจ็ด', 'แปด', 'เก้า'], TH_POS = ['', 'สิบ', 'ร้อย', 'พัน', 'หมื่น', 'แสน'];
+function thaiNum(n, higher) {
+  if (n >= 1e6) return thaiNum(Math.floor(n / 1e6), false) + 'ล้าน' + thaiNum(n % 1e6, true);
+  const s = String(n);
+  let out = '';
+  for (let i = 0; i < s.length; i++) {
+    const d = +s[i], p = s.length - 1 - i;
+    if (!d) continue;
+    if (p === 0 && d === 1 && (higher || s.length > 1)) out += 'เอ็ด';
+    else if (p === 1 && d === 2) out += 'ยี่สิบ';
+    else if (p === 1 && d === 1) out += 'สิบ';
+    else out += TH_DIG[d] + TH_POS[p];
+  }
+  return out;
+}
+const thaiWords = n => n ? thaiNum(n, false) : 'ศูนย์';
+// คำอ่านยาวตัดบรรทัดได้แค่รอยต่อหลัก (เจ็ดหมื่น/สองพัน/บาทถ้วน) ร่างแรกตัดกลางหลักเป็น สอง/พัน ที่ 390
+const WCHUNK = /(?:หนึ่ง|สอง|สาม|สี่|ห้า|หก|เจ็ด|แปด|เก้า|ยี่)?(?:สิบ|ร้อย|พัน|หมื่น|แสน|ล้าน)|เอ็ด|หนึ่ง|สอง|สาม|สี่|ห้า|หก|เจ็ด|แปด|เก้า|ศูนย์|บาทถ้วน/g;
+const wordsHtml = s => s.replace(WCHUNK, c => `<span class="nb">${c}</span>`);
 const TODAY = day(2569, 9, 30);
 
 const FLOW = ['letter', 'response', 'nego', 'docs', 'pre', 'review', 'contract', 'sign', 'check', 'done'];
@@ -252,8 +287,12 @@ const STEP = {
 // ขั้นตรวจที่เครื่องมือแสดงให้ดูอย่างเดียว ชื่อทีมตามคำเล่าของเจ้าของงาน
 const GATES = {
   review: [['CDC ตรวจร่างสัญญา', ''], ['DQM Review', 'ทีม Vendor ตรวจใน SMT ตามคำเล่า รอยืนยัน'], ['DQM Head Review', 'ทีม CPA'], ['E-Approval', 'อนุมัติการจ่ายเงิน'],
-           ['Head of Payment Review', 'ทีม CPA'], ['Head of SMT Review', ''], ['Pre-contract First Payment', '']],
-  check: [['CDC ตรวจสัญญาที่เซ็นแล้ว', ''], ['Review Completed Contract', 'ใน SMT'], ['Completed Contract', 'ทีม CPA']],
+           ['Head of Payment Review', 'ทีม CPA'], ['Head of SMT Review', ''], ['Pre-contract First Payment', ''],
+           // รุ่น 9: ผังของคนทำระบบ SAR ให้ SMT ส่งข้อมูลฉบับอนุมัติกลับเข้า SAR ก่อนขั้นเซ็น
+           ['Interface data', 'SMT ส่งข้อมูลกลับ SAR ตามผังของคนทำระบบ']],
+  check: [['CDC ตรวจสัญญาที่เซ็นแล้ว', ''], ['Review Completed Contract', 'ใน SMT'], ['Completed Contract', 'ทีม CPA'],
+          // รุ่น 9: ผังของคนทำระบบจบที่บันทึกเลขสัญญากลับเข้า SAR ตารางสถานะเดิมไม่มีขั้นนี้
+          ['Update Contract Code', 'บันทึกเลขสัญญากลับ SAR ตามผังของคนทำระบบ']],
 };
 // เครื่องหมาย | คือจุดที่ยอมให้ตัดบรรทัดเมื่อจอแคบ
 const DOCS = {
@@ -267,9 +306,14 @@ const wrapName = s => s.split('|').map(c => `<span class="nb">${c}</span>`).join
 // รุ่น 7 ฟ้าเห็น ผู้/ร่าง ตกบรรทัดในภาพมือถือ วัดทุกจอที่ความกว้าง 320 ถึง 1024 แล้วเติมคำที่ถูกตัดจริงและอ่านแล้วความหมายเพี้ยน
 // หรือเหลือคำค้างท้ายบรรทัด (ผู้ให้/เช่า , ค่า/เช่า , ใบ/เสร็จ , แม่/แบบ , ส่วน/บุคคล ...) 01/10/2026
 // รุ่น 8 วัดซ้ำหลังเพิ่มข้อความใหม่ เจอ ด่าน/แรก , ครั้ง/เดียว , ขั้นที่/เหลือ , ทำ/ต่อใน SAR (อ่านเป็นต่อสัญญาได้) , งาน/นี้
+// รุ่น 9 วัดซ้ำทุกจอทุกความกว้างหลังเพิ่มข้อความจากผังของคนทำระบบ เจอ ก/ล่อง (ตัดกลางคำ) , คน/ทำระบบ , ขั้น/ตอน , อัป/โหลด ,
+// ค่าใช้/จ่าย , ผู้รับ/เงิน , ราย/ละเอียด , พื้นที่/เช่า , บุคคล/ทั่วไป , เลข/สัญญา , หน้า/สรุป , ส่วน/หนึ่ง , ตั้ง/ค่า (02/10)
 // และเห็นจากภาพว่า เดิม กับ เดียว ตกไปอยู่บรรทัดเดียวโดด ๆ (ตาม/เดิม , อย่าง/เดียว) จึงเติมอีก 7 คำ
 // แล้วไล่คำศัพท์ของงานนี้ในผลวัด เจอ ตี/กลับ (อ่านเป็นตี) , คำ/ตอบ , ชื่อกรณี รวม/สัญญา แยก/สัญญา กับชื่อขั้น ร่าง/สัญญา เติมอีก 5 คำ
-const KEEP = /เครื่องมือ|หน่วยงาน|บาทต่อปี|งวดแรก|รายเดือน|รายปี|ผู้ให้เช่า|ผู้เช่า|ผู้ร่าง|ผู้เซ็น|ผู้บริหาร|ผู้ตัดสิน|ค่าเช่า|ค่าเริ่มต้น|ใบเสร็จ|ใบตอบรับ|เจ้าของงาน|ข้อเสนอ|ครบกำหนด|คู่สัญญา|ระยะเวลา|ส่วนบุคคล|หน้างาน|แม่แบบ|ต่ออายุ|หน้าจอ|มือถือ|ตีกลับ|คำตอบ|รวมสัญญา|แยกสัญญา|ร่างสัญญา|ตามเดิม|อย่างเดียว|ด่านแรก|ครั้งเดียว|ที่เหลือ|ทำต่อ|งานนี้/g;
+// รุ่น 10 วัดซ้ำหลังเพิ่มหนังสือตามแบบฟอร์มจริงกับเรื่องขยายระยะเวลา รวมสภาพที่ต้องกดก่อน (ใบแนบที่พับ ฟอร์มขยาย รายการทั้งหมด) เจอคำถูกตัดกลางคำ
+// แบบ/ฟอร์ม , ลง/นาม , รื้อ/ถอน , ขาย/ฝาก , แบ่ง/แยก กับคำที่ตัดแล้วอ่านเพี้ยน นับ/แต่ (อ่านเป็นแต่) , สี/ฟ้า , สัญญา/เช่า ,
+// ทาง/ไปรษณีย์ , บัญชี/ธนาคาร , หนังสือ/ยินยอม , ตอบ/กลับ , ติด/ภาระ , ชุด/เดียว ... เติมอีก 23 คำ (02/10)
+const KEEP = /เครื่องมือ|คนทำระบบ|ขั้นตอน|อัปโหลด|พื้นที่เช่า|ค่าใช้จ่าย|ผู้รับเงิน|รายละเอียด|กล่อง|บุคคลทั่วไป|เลขสัญญา|หน้าสรุป|ส่วนหนึ่ง|ตั้งค่า|หน่วยงาน|บาทต่อปี|งวดแรก|รายเดือน|รายปี|ผู้ให้เช่า|ผู้เช่า|ผู้ร่าง|ผู้เซ็น|ผู้บริหาร|ผู้ตัดสิน|ค่าเช่า|ค่าเริ่มต้น|ใบเสร็จ|ใบตอบรับ|เจ้าของงาน|ข้อเสนอ|ครบกำหนด|คู่สัญญา|ระยะเวลา|ส่วนบุคคล|หน้างาน|แม่แบบ|ต่ออายุ|หน้าจอ|มือถือ|ตีกลับ|คำตอบ|รวมสัญญา|แยกสัญญา|ร่างสัญญา|ตามเดิม|อย่างเดียว|ด่านแรก|ครั้งเดียว|ที่เหลือ|ทำต่อ|งานนี้|แบบฟอร์ม|ผู้ลงนาม|ลงนาม|รื้อถอน|ขายฝาก|แบ่งแยก|นับแต่|สีฟ้า|สัญญาเช่า|ทะเบียนบ้าน|บัตรประชาชน|บัญชีธนาคาร|หนังสือยินยอม|หนังสือรับรอง|ตอบกลับ|ติดภาระ|ทางไปรษณีย์|ทางอีเมล|เอกสารประกอบ|ช่วงขยาย|ชุดเดียวกัน|ชุดเดียว|ผู้รับจำนอง/g;
 function keepWords(root) {
   const w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT), hits = [];
   for (let n = w.nextNode(); n; n = w.nextNode()) {
@@ -291,7 +335,7 @@ function keepWords(root) {
 
 const TASKS = [
   { id: 't1', site: 'SMP0101', ll: 'ผู้ให้เช่าตัวอย่าง ก', type: 'บุคคลทั่วไป', end: day(2570, 1, 31), rent: 72000, at: 'letter' },
-  { id: 't2', site: 'SMP0102', ll: 'ผู้ให้เช่าตัวอย่าง ข', type: 'บุคคลทั่วไป', end: day(2570, 2, 28), rent: 60000, at: 'response', sent: day(2569, 9, 22) },
+  { id: 't2', site: 'SMP0102', ll: 'ผู้ให้เช่าตัวอย่าง ข', type: 'บุคคลทั่วไป', end: day(2570, 2, 28), rent: 60000, at: 'response', sent: day(2569, 9, 22), via: 'อีเมล' },
   { id: 't3', site: 'SMP0103', ll: 'บริษัท ตัวอย่าง ค จำกัด', type: 'บริษัท', end: day(2570, 3, 31), rent: 120000, at: 'nego', sent: day(2569, 9, 10), answer: 'ต่อสัญญา' },
   { id: 't4', site: 'SMP0104', ll: 'ผู้ให้เช่าตัวอย่าง ง', type: 'บุคคลทั่วไป', end: day(2570, 4, 30), rent: 84000, at: 'pre', sent: day(2569, 9, 2), answer: 'ต่อสัญญา', docs: 6 },
   { id: 't5', site: 'SMP0105', ll: 'ผู้ให้เช่าตัวอย่าง จ', type: 'บุคคลทั่วไป', end: day(2570, 1, 31), rent: 66000, at: 'pre', sent: day(2569, 8, 25), answer: 'ต่อสัญญา', docs: 6,
@@ -317,10 +361,23 @@ const TASKS = [
   { id: 't19', site: 'SMP0119', ll: 'ผู้ให้เช่าตัวอย่าง ป', type: 'บุคคลทั่วไป', end: day(2570, 1, 31), rent: 82000, at: 'review', sent: day(2569, 7, 20), answer: 'ต่อสัญญา', docs: 6,
     asks: [{ date: '28 ก.ย. 2569', note: 'ผู้ให้เช่าขอเปลี่ยนการชำระจากรายปีเป็นรายเดือน' }] },
   { id: 't20', site: 'SMP0120', ll: 'ผู้ให้เช่าตัวอย่าง ผ', type: 'บุคคลทั่วไป', end: day(2570, 4, 30), rent: 54000, at: 'pre', sent: day(2569, 9, 1), answer: 'ต่อสัญญา', docs: 3, merge: true },
+  // รุ่น 9 (02/10/2026) ตามผังของคนทำระบบ SAR: งาน Extend อยู่กระบวนการเดียวกับ Renew แต่ไปทำ Pre-Contract ตรง ไม่มีขั้น 01 ถึง 03
+  // กับงานที่ผู้ให้เช่าปฏิเสธ (ผลการเจรจา เจ้าของปฏิเสธ ไปยกเลิกงาน) ส่งขอยกเลิกแล้ว รอ CDC ยืนยัน
+  { id: 't21', site: 'SMP0121', ll: 'ผู้ให้เช่าตัวอย่าง ฝ', type: 'บุคคลทั่วไป', end: day(2570, 6, 30), rent: 74000, at: 'docs', ext: true, docs: 2 },
+  { id: 't22', site: 'SMP0122', ll: 'ผู้ให้เช่าตัวอย่าง พ', type: 'บุคคลทั่วไป', end: day(2570, 1, 31), rent: 66000, at: 'response', sent: day(2569, 8, 12), answer: 'ไม่ต่อ', rung: 2,
+    talks: [{ date: '19 ส.ค. 2569', note: 'ผู้ให้เช่าจะใช้ที่ดินเอง ไม่ต่อสัญญา' }, { date: '9 ก.ย. 2569', note: 'CDC ช่วยคุยแล้ว ผู้ให้เช่ายืนยันไม่ต่อ' }],
+    cancel: { date: '29 ก.ย. 2569', note: 'ผู้ให้เช่ายืนยันไม่ต่อ จะใช้ที่ดินเอง' } },
+  // รุ่น 10 (02/10/2026) คำเล่าของเจ้าของงาน: ผู้ให้เช่าไม่ต่อ แต่บริษัทยังรื้อถอนไม่ทัน ขอขยายระยะเวลา อาจเพิ่มค่าเช่า
+  { id: 't23', site: 'SMP0123', ll: 'ผู้ให้เช่าตัวอย่าง ฟ', type: 'บุคคลทั่วไป', end: day(2569, 12, 31), rent: 60000, at: 'response', sent: day(2569, 8, 15), answer: 'ไม่ต่อ', rung: 2,
+    talks: [{ date: '22 ส.ค. 2569', note: 'ผู้ให้เช่าจะขายที่ดิน ไม่ต่อสัญญา' }, { date: '12 ก.ย. 2569', note: 'CDC ช่วยคุยแล้ว ผู้ให้เช่ายืนยันไม่ต่อ' }],
+    cancel: { date: '30 ก.ย. 2569', note: 'ยอมให้อยู่ต่อ 6 เดือนระหว่างรื้อถอน ขอค่าเช่าเพิ่ม', ext: { months: 6, rent: 72000 } } },
 ];
 // dr เก็บค่าที่พิมพ์หรือเลือกไว้แต่ยังไม่กดบันทึก ออกจากงานกลางทางแล้วกลับมา ค่ายังอยู่
 // งานกรณีพิเศษตั้งบันทึกการเจรจา ไม้ การติดตาม และสิ่งที่ผู้ให้เช่าขอไว้ล่วงหน้าได้ งานอื่นเริ่มว่าง
 TASKS.forEach(t => { t.att = {}; for (let i = 0; i < (t.docs || 0); i++) t.att['d' + i] = true; t.talks = t.talks || []; t.rung = t.rung || 1; t.follows = t.follows || []; t.asks = t.asks || []; t.dr = {}; });
+// รุ่น 10: งานที่ส่งหนังสือแล้วและไม่ได้ตั้งทางส่งไว้ ถือว่าส่งทางไปรษณีย์
+TASKS.forEach(t => { if (t.sent && !t.via) t.via = 'ไปรษณีย์'; });
+const extPeriod = (t, months) => { const s = plusDays(t.end, 1); return [s, plusDays(plusMonths(s, months), -1)]; };
 const dv = (t, id, def) => (id in t.dr ? t.dr[id] : def);
 
 const MINE = ['letter', 'response', 'nego', 'docs', 'pre', 'contract', 'sign'];
@@ -330,11 +387,14 @@ const MINE = ['letter', 'response', 'nego', 'docs', 'pre', 'contract', 'sign'];
 // คู่สัญญาเปลี่ยนแล้วหยุดการเซ็น = งานอยู่ที่ CDC ตัดสิน คนหน้างานไม่ต้องทำอะไร (รุ่น 7)
 // งานรวมหรือแยกสัญญา (ไม่ใช่ 1 งาน 1 ร่าง) ทำใน SAR ตามเดิม (ร่าง 2-19) ในเครื่องมือดูได้อย่างเดียว
 // แต่ยังเป็นงานที่คนหน้างานต้องทำเองใน SAR จึงไม่นับเป็นงานที่ส่งต่อ (รุ่น 8 ตาใหม่เทียบกับร่างแล้วเจอว่ารุ่น 7 ยังเดินต่อในเครื่องมือได้)
+// รุ่น 9: ผู้ให้เช่าปฏิเสธแล้วส่งขอยกเลิก (cancel) งานรอ CDC ยืนยัน ไม่มีอะไรให้คนหน้างานทำ จึงอยู่กลุ่มรอคนอื่น
+// CDC ยืนยันแล้ว (cancel.done) งานปิดเป็นยกเลิก ไม่อยู่ทั้งกลุ่มต้องทำและรอคนอื่น เหลือแค่ในกลุ่มทั้งหมด ต่อท้ายเหมือนงานเสร็จ
 const inSar = t => !!t.merge;
-const viewing = t => inSar(t) || (t.at === 'sign' && !!t.stop) || (t.at === 'pre' && t.cpa === 'sent') || (t.at === 'sign' && t.mode === '1' && t.link === 'sent' && (!t.cheque || !!t.att.receipt));
-const handed = t => (viewing(t) && !inSar(t)) || (t.at === 'response' && t.answer === 'ไม่ต่อ' && t.rung > 1);
+const cancelled = t => !!(t.cancel && t.cancel.done);
+const viewing = t => inSar(t) || !!t.cancel || (t.at === 'sign' && !!t.stop) || (t.at === 'pre' && t.cpa === 'sent') || (t.at === 'sign' && t.mode === '1' && t.link === 'sent' && (!t.cheque || !!t.att.receipt));
+const handed = t => !cancelled(t) && ((viewing(t) && !inSar(t)) || (t.at === 'response' && t.answer === 'ไม่ต่อ' && t.rung > 1));
 const GROUPS = {
-  todo: t => MINE.includes(t.at) && !handed(t),
+  todo: t => MINE.includes(t.at) && !handed(t) && !cancelled(t),
   back: t => !!t.back,
   sign: t => (t.at === 'contract' || t.at === 'sign') && !handed(t),
   wait: t => t.at === 'review' || t.at === 'check' || handed(t),
@@ -364,6 +424,13 @@ const lateDays = t => t.own ? 0 : Math.round((TODAY - plusDays(t.sent || TODAY, 
 function stateTag(t) {
   const tag = (cls, s) => `<span class="tag${cls ? ' ' + cls : ''}">${s}</span>`;
   if (t.at === 'done') return tag('ok', 'เสร็จ');
+  // ป้ายไม่มีสีแปลว่าต้องลงมือ งานที่ยกเลิกแล้วไม่มีอะไรต้องทำ จึงใช้ป้ายเทา
+  // รุ่น 10: เรื่องขอขยายระยะเวลาเดินทางเดียวกับขอยกเลิก (รอ CDC แล้วปิด) แต่ป้ายบอกว่าเป็นการขยาย
+  if (cancelled(t) && t.cancel.ext) return tag('quiet', 'ขยายระยะเวลาแล้ว');
+  if (cancelled(t)) return tag('quiet', 'ยกเลิกแล้ว');
+  // ป้ายยาวกว่า 151 จุดล้นช่องสถานะที่ 390 กับ 768 (วัดจริง 02/10) จึงสั้นคู่กับ รอ CDC ยืนยันยกเลิก ข้อความเต็มอยู่ในขั้น
+  if (t.cancel && t.cancel.ext) return tag('quiet', 'รอ CDC ยืนยันขยาย');
+  if (t.cancel) return tag('quiet', 'รอ CDC ยืนยันยกเลิก');
   if (t.back) return tag('bad', 'ถูกตีกลับ');
   if (inSar(t)) return tag('', 'ต้องทำใน SAR');
   if (t.at === 'response' && t.answer === 'ไม่ต่อ') return t.rung > 1 ? tag('quiet', 'รอ CDC ช่วยคุย') : tag('bad', 'ผู้ให้เช่าไม่ต่อ');
@@ -380,7 +447,10 @@ function stateTag(t) {
 // ช่องกรณีพิเศษ 2-15 มี 4 เรื่อง ตัวอย่างมีแค่ สัญญาออกโดย กับ รับเช็คงวดแรก ในขั้น 05 สัญญาไม่มาตรฐานกับงานรวมสัญญาตั้งไว้ในข้อมูลของงาน
 function cases(t) {
   const c = [];
-  if (t.at === 'response' && t.answer === 'ไม่ต่อ') c.push('ไม่ต่อ ไม้ ' + t.rung);
+  if (t.ext) c.push('งาน Extend');
+  if (t.at === 'response' && t.answer === 'ไม่ต่อ' && !t.cancel) c.push('ไม่ต่อ ไม้ ' + t.rung);
+  if (t.cancel && t.cancel.ext) c.push('ขอขยายระยะเวลา');
+  else if (t.cancel) c.push('ผู้ให้เช่าปฏิเสธ');
   if (t.backs) c.push('ตีกลับ ' + t.backs + ' รอบ' + (t.backFrom ? ' จากฝั่ง SMT' : ''));
   if (t.cheque) c.push('รับเช็คงวดแรก');
   if (t.own) c.push('ผู้ให้เช่าออกสัญญาเอง');
@@ -406,7 +476,7 @@ function listRows() {
   // ค้นแบบไม่สนช่องว่างกับตัวพิมพ์ SMP 0106 กับ smp0106 เจองานเดียวกัน
   const norm = s => s.toLowerCase().replace(/\s+/g, ''), q = norm(query);
   // ค้นทุกกลุ่มเสมอ งานถูกตีกลับขึ้นก่อน เพราะเป็นงานที่ต้องแก้ก่อนงานอื่น ที่เหลือเรียงตามวันหมดสัญญา ใกล้หมดขึ้นก่อน งานเสร็จอยู่ท้าย
-  const rank = t => t.back ? 0 : t.at === 'done' ? 2 : 1;
+  const rank = t => t.back ? 0 : t.at === 'done' || cancelled(t) ? 2 : 1;
   const rows = (q ? TASKS.filter(t => norm(t.site + ' ' + t.ll).includes(q)) : TASKS.filter(GROUPS[filter]))
     .slice().sort((a, b) => rank(a) - rank(b) || a.end - b.end);
   document.getElementById('list').innerHTML = rows.map(t => `<li data-site="${t.site}" data-end="${t.end.getTime()}"><a class="row" href="#/task/${t.id}">
@@ -427,15 +497,17 @@ function viewList() {
     <div class="chips">${chip('todo', 'ต้องทำ')}${chip('back', 'ถูกตีกลับ')}${chip('sign', 'พร้อมเซ็น')}${chip('wait', 'รอคนอื่น')}${chip('all', 'ทั้งหมด')}</div>
     <ul class="list" id="list"></ul>
     <p class="empty" id="empty" hidden></p>
-    ${srcLine('งานที่ CDC มอบหมายในขั้น Waiting for Task Assignment และช่องค้นหาบน Dashboard ของ SAR การจัดกลุ่ม การค้นชื่อผู้ให้เช่า และป้ายกรณีพิเศษใต้แต่ละงานเป็นข้อเสนอใหม่')}
+    ${srcLine('งานที่ CDC มอบหมายในขั้น Waiting for Task Assignment และช่องค้นหาบน Dashboard ของ SAR ผังของคนทำระบบ SAR วางงาน Renew กับงาน Extend ไว้ในรายการเดียวกัน การจัดกลุ่ม การค้นชื่อผู้ให้เช่า และป้ายกรณีพิเศษใต้แต่ละงานเป็นข้อเสนอใหม่')}
     <p class="src"><a href="#/about">สมมติฐานของตัวอย่างนี้</a></p>`;
   listRows();
 }
 
 function summary(t, k) {
   const a = A(t), p = P(t), same = a.term === p.term && a.rent === p.rent && a.pay === p.pay;
-  if (k === 'letter') return (t.own ? 'ส่งหนังสือตามแบบของหน่วยงานแล้ว ' : 'ส่งแล้ว ') + fd(t.sent || TODAY) + (t.track ? ` เลขพัสดุ <span class="nb">${esc(t.track)}</span>` : '');
-  if (k === 'response') return t.answer || '';
+  // รุ่น 10: สรุปบอกทางส่ง ไปรษณีย์บอกเลขพัสดุ อีเมลบอกอีเมลผู้ให้เช่า
+  if (k === 'letter') return (t.own ? 'ส่งหนังสือตามแบบของหน่วยงานแล้ว ' : 'ส่งแล้ว ') + fd(t.sent || TODAY) + ' ' + viaText(t.via || 'ไปรษณีย์')
+    + (t.via === 'อีเมล' ? (t.lmail ? ` <span class="nb">${esc(t.lmail)}</span>` : '') : (t.track ? ` เลขพัสดุ <span class="nb">${esc(t.track)}</span>` : ''));
+  if (k === 'response') return t.answer ? t.answer + (t.rvia ? ' ตอบ' + viaText(t.rvia) : '') : '';
   if (k === 'nego') return (same ? 'ตกลงตามที่เสนอ ' : 'ตกลง ') + `${a.term} ปี ${baht(a.rent)}${a.pay === 'รายปี' ? '' : ' ชำระ' + a.pay}`;
   if (k === 'docs') {
     const all = DOCS[t.type].length, got = DOCS[t.type].filter((_, i) => t.att['d' + i]).length;
@@ -464,6 +536,53 @@ const SAR_ONLY = `${WAITLEAD('งานนี้รวมสัญญา ทำ�
 // (ตาใหม่รุ่น 8 ชี้ว่าเส้นประชวนให้เข้าใจว่ายังทำต่อในเครื่องมือ ทั้งที่ข้อความบอกว่าขั้นที่เหลือทำใน SAR)
 const REST = `<p class="group">ขั้นที่เหลือ</p>
     <ol class="steps"><li class="step is-sum is-out" id="rest"><div class="step-head"><span class="step-name">ด่านตรวจ กับขั้น 06 ถึง 07</span><span class="step-note">ทำใน SAR ตามเดิม</span></div></li></ol>`;
+// รุ่น 9: งานที่ส่งขอยกเลิกแล้วไม่เดินต่อ ขั้นที่เหลือขึ้นแถวเดียวว่าไม่ทำต่อ แบบเดียวกับงานรวมสัญญา ไม่เป็นเส้นประเหมือนจะทำต่อ
+// รุ่น 10: งานที่ขอขยายระยะเวลาแทนการยกเลิก แถวขั้นที่เหลือบอกว่าขยาย ไม่ใช่ยกเลิก
+const extNote = t => cancelled(t) ? 'ขยายระยะเวลาแล้ว' : 'ขอขยายระยะเวลาแทน';
+const STOPPED = t => `<p class="group">ขั้นที่เหลือ</p>
+    <ol class="steps"><li class="step is-sum is-out" id="rest"><div class="step-head"><span class="step-name">ขั้น ${STEP[FLOW[idx(t.at) + 1]].no} ถึง 07 กับด่านตรวจ</span><span class="step-note">${t.cancel.ext ? 'ไม่ทำต่อ ' + extNote(t) : `ไม่ทำต่อ ${cancelled(t) ? 'งานยกเลิกแล้ว' : 'งานขอยกเลิก'}`}</span></div></li></ol>`;
+// งาน Extend ไม่มีขั้น 01 ถึง 03 (ผังของคนทำระบบ SAR) ขึ้นแถวเดียวแทน ไม่เป็นแถวเสร็จทั้งที่ไม่ได้ทำ
+const SKIP = '<li class="step is-sum is-out" id="skip"><div class="step-head"><span class="step-name">ขั้น 01 ถึง 03</span><span class="step-note">งาน Extend ไม่มีขั้นเหล่านี้</span></div></li>';
+// ผู้ให้เช่าปฏิเสธ: ผังของคนทำระบบ SAR ให้ผลการเจรจา เจ้าของปฏิเสธ ไปยกเลิกงาน (Cancel Task) เครื่องมือไม่ยกเลิกงานเอง (ร่าง 4.4 , 2-23)
+// การให้ CDC ยืนยันก่อนตีความจากการ์ด Waiting for Cancel Task บนหน้าสรุปของ SAR ที่อยู่ในแถบสีของ Negotiate
+// รุ่น 10 คำเล่าของเจ้าของงาน: ผู้ให้เช่าไม่ต่อ แต่บริษัทยังรื้อถอนไม่ทัน ทำหนังสือขอขยายระยะเวลา อาจเพิ่มค่าเช่า บริษัทจ่ายค่าเช่าช่วงขยาย
+// ส่งเรื่องให้ CDC ยืนยันแบบเดียวกับขอยกเลิก (ข้อเสนอของผู้ร่าง) สัญญาช่วงขยายกับการรื้อถอนทำนอกเครื่องมือ
+const extBody = t => {
+  const x = t.cancel.ext, [s, e] = extPeriod(t, x.months), done = cancelled(t);
+  return `
+    ${WAITLEAD(done ? 'ขยายระยะเวลาแล้ว' : 'รอ CDC ยืนยันขยายระยะเวลา')}
+    <p class="note" id="cancel">ผู้ให้เช่าไม่ต่อ แต่ยังรื้อถอนไม่ทัน ขอขยายระยะเวลา ${x.months} เดือน ค่าเช่าช่วงขยาย ${baht(x.rent)} บันทึกเมื่อ ${t.cancel.date}: ${esc(t.cancel.note)}</p>
+    <div class="sheet" id="ext-letter"><p class="c">ตัวอย่างหนังสือขอขยายระยะเวลาเช่า</p>
+      <p>ขอเช่าพื้นที่ของไซต์ <mark>${t.site}</mark> ต่ออีก <mark>${x.months} เดือน</mark> ตั้งแต่ <mark>${fmt(s)}</mark> ถึง <mark>${fmt(e)}</mark> ค่าเช่า <mark>${baht(x.rent)}</mark> (<mark class="w">${wordsHtml(thaiWords(x.rent) + 'บาทถ้วน')}</mark>) ระหว่างเตรียมรื้อถอน</p></div>
+    ${t.talks.length ? `<div><span class="lab">บันทึกการเจรจาที่ผ่านมา</span><ul class="log" id="talks">${t.talks.map((y, i) => `<li>รอบ ${i + 1} วันที่ ${y.date}: ${esc(y.note)}</li>`).join('')}</ul></div>` : ''}
+    <p class="hint">สัญญาช่วงขยายกับการรื้อถอนทำนอกเครื่องมือ ยังไม่รู้ว่าทำที่ไหน</p>
+    ${done ? '' : DEMO('data-act="cancel-ok"', 'จำลองว่า CDC ยืนยันแล้ว')}`;
+};
+const cancelBody = t => t.cancel.ext ? extBody(t) : `
+    ${WAITLEAD(cancelled(t) ? 'งานนี้ยกเลิกแล้ว' : 'รอ CDC ยืนยันยกเลิกงาน')}
+    <p class="note" id="cancel">ผู้ให้เช่าปฏิเสธ บันทึกเมื่อ ${t.cancel.date}: ${esc(t.cancel.note)}</p>
+    ${t.talks.length ? `<div><span class="lab">บันทึกการเจรจาที่ผ่านมา</span><ul class="log" id="talks">${t.talks.map((x, i) => `<li>รอบ ${i + 1} วันที่ ${x.date}: ${esc(x.note)}</li>`).join('')}</ul></div>` : ''}
+    ${cancelled(t) ? '' : `<p class="hint">เครื่องมือไม่ยกเลิกงานเอง CDC ยืนยันแล้วงานจึงปิดเป็นยกเลิก</p>
+    ${DEMO('data-act="cancel-ok"', 'จำลองว่า CDC ยืนยันยกเลิกแล้ว')}`}`;
+// ทางส่งขอยกเลิก อยู่ในก้อนไม่ต่อของขั้น 02 (บันไดอยู่ขั้นนี้ตามคำเล่า) กับขั้น 03 (ผังวางทางเจ้าของปฏิเสธไว้ที่ขั้นเจรจา)
+// พิมพ์เหตุผลก่อน ปุ่มส่งจึงเปิด ฟอร์มเปิดปิดในที่เดิม ค่าที่พิมพ์ค้างไว้ไม่หาย
+const cancelExc = (t, lab) => `
+    <div class="exc" id="exc-cancel">
+      <span class="lab">${lab}</span>
+      <div class="acts"><button class="ghost" data-act="open-cancel">ผู้ให้เช่าปฏิเสธ ขอยกเลิกงาน</button><button class="ghost" data-act="open-ext">ยังรื้อถอนไม่ทัน ขอขยายระยะเวลา</button></div>
+      <div class="stack" id="cancel-form" hidden>
+        <label><span class="lab">ผู้ให้เช่าปฏิเสธเพราะอะไร</span><textarea class="field" id="cancel-text" data-keep placeholder="เช่น จะใช้ที่ดินเอง">${esc(dv(t, 'cancel-text', ''))}</textarea></label>
+        <button class="ghost" data-act="cancel-go"${dv(t, 'cancel-text', '').trim() ? '' : ' disabled'}>ส่งให้ CDC ยืนยันยกเลิก</button>
+      </div>
+      <div class="stack" id="ext-form" hidden>
+        <div class="two">
+          <label><span class="lab">ขยายกี่เดือน</span><select class="field" id="ext-months" data-keep>${opts(EXT_MONTHS, dv(t, 'ext-months', '6 เดือน'))}</select></label>
+          <label><span class="lab">ค่าเช่าช่วงขยาย (บาทต่อปี)</span><input class="field" id="ext-rent" data-keep inputmode="numeric" value="${esc(dv(t, 'ext-rent', num(t.rent)))}"></label>
+        </div>
+        <label><span class="lab">ผู้ให้เช่าตอบเรื่องขยายว่าอะไร</span><textarea class="field" id="ext-text" data-keep placeholder="เช่น ยอมให้อยู่ต่อ 6 เดือน ขอค่าเช่าเพิ่ม">${esc(dv(t, 'ext-text', ''))}</textarea></label>
+        <button class="ghost" data-act="ext-go"${dv(t, 'ext-text', '').trim() ? '' : ' disabled'}>ส่งเรื่องขยายระยะเวลาให้ CDC</button>
+      </div>
+    </div>`;
 // ผู้ให้เช่าออกสัญญาเอง หรือผู้ลงนามมากกว่า 1 คน เฟสแรกเซ็นกระดาษนอกเครื่องมือแล้วถ่ายแนบ (ร่าง 4.4 , 3-08)
 const paperOnly = t => !!t.own || t.signers > 1;
 function gateBody(t, key) {
@@ -504,29 +623,61 @@ const F = {
       <label><span class="lab">การชำระ</span><select class="field" id="p-pay" data-keep>${opts(PAYS, pp)}</select></label>
       <label><span class="lab">แบบหนังสือ</span><input class="field" readonly value="${t.own ? 'ตามแบบของหน่วยงาน' : t.type}"></label>
     </div>`;
+    // รุ่น 10: ส่งทางไปรษณีย์ (ใส่เลขพัสดุ) หรืออีเมล (ใส่อีเมลผู้ให้เช่า) ตามคำเล่าของเจ้าของงาน
+    const via = dv(t, 'l-via', t.via || 'ไปรษณีย์');
     const send = `
+    <fieldset class="tiles">
+      <legend class="lab">ส่งทาง</legend>
+      ${VIAS.map(v => `<label class="tile radio"><input type="radio" name="l-via" value="${v}"${v === via ? ' checked' : ''}><span>${v}</span></label>`).join('')}
+    </fieldset>
     <div class="two">
       <label><span class="lab">วันที่ส่ง</span><input class="field" id="l-date" data-keep value="${esc(dv(t, 'l-date', fmt(TODAY)))}"></label>
-      <label><span class="lab">เลขพัสดุ</span><input class="field" id="l-track" data-keep placeholder="ถ้ามี" value="${esc(dv(t, 'l-track', ''))}"></label>
+      <label id="via-post"${via === 'ไปรษณีย์' ? '' : ' hidden'}><span class="lab">เลขพัสดุ</span><input class="field" id="l-track" data-keep placeholder="ถ้ามี" value="${esc(dv(t, 'l-track', ''))}"></label>
+      <label id="via-mail"${via === 'อีเมล' ? '' : ' hidden'}><span class="lab">อีเมลผู้ให้เช่า</span><input class="field" id="l-mail" data-keep type="email" placeholder="name@example.com" value="${esc(dv(t, 'l-mail', ''))}"></label>
     </div>`;
     if (t.own) return `${offer}
     <p class="note">หน่วยงานนี้ออกสัญญาเอง ไม่ใช้หนังสือมาตรฐานของบริษัท ทำหนังสือขอต่ออายุตามแบบของหน่วยงาน แล้วแนบไว้ที่นี่</p>
     ${attach(t, 'gov', 'หนังสือตามแบบ|ของหน่วยงาน', 'แนบไฟล์')}
     ${send}${MISS}
     <button class="btn" data-go="letter">ยืนยันว่าส่งหนังสือแล้ว</button>`;
+    // รุ่น 10 ตามแบบฟอร์มหนังสือที่ใช้จริง (02/10/2026): หนังสือ ใบตอบรับ แบบฟอร์มแจ้งรายละเอียด ออกจากค่าชุดเดียว
+    // ตัวอย่างจริงที่ได้มา ใบตอบรับเขียน 1 ปีทั้งที่ช่วงวันที่ 3 ปี ช่องที่เติมให้ทุกแผ่นจึงใช้ data-m ชุดเดียว แก้ข้อเสนอแล้วเปลี่ยนพร้อมกัน
+    const [s, e] = period(t, parseInt(pt, 10) || p.term), rent = numOf(pr);
+    const m = (k, v, w) => `<mark data-m="${k}"${w ? ' class="w"' : ''}>${v}</mark>`;
+    const terms = `ระยะเวลาเช่า ${m('term', pt)} นับตั้งแต่ ${m('from', fmt(s))} ถึง ${m('to', fmt(e))}`;
+    const money = `ค่าเช่า ${m('rent', baht(rent))} (${m('words', wordsHtml(thaiWords(rent) + 'บาทถ้วน'), true)})`;
     return `${offer}
     <div>
-      <p class="paper-cap">ตัวอย่างหนังสือ ช่องสีฟ้าคือข้อมูลที่เติมให้</p>
+      <p class="paper-cap">ตัวอย่างหนังสือตามแบบฟอร์มที่ใช้จริง ข้อความเป็นตัวอย่าง ช่องสีฟ้าคือข้อมูลที่เติมให้</p>
       <div class="paper">
         <p class="r">เลขที่ ตัวอย่าง ${t.site.slice(3)}/2569</p>
         <p class="r">วันที่ <mark>${fmtLong(TODAY)}</mark></p>
-        <p>เรื่อง ขอต่ออายุสัญญาเช่า</p>
+        <p>เรื่อง ยืนยันความประสงค์ต่ออายุสัญญาเช่า</p>
         <p>เรียน <mark>${t.ll}</mark></p>
+        <p>อ้างถึง สัญญาเช่าพื้นที่ของไซต์ <mark>${t.site}</mark></p>
+        <p>สิ่งที่ส่งมาด้วย 1. ใบตอบรับการต่ออายุสัญญา 2. แบบฟอร์มแจ้งรายละเอียด</p>
         <p>สัญญาเช่าพื้นที่ของไซต์ <mark>${t.site}</mark> จะครบกำหนดวันที่ <mark>${fmt(t.end)}</mark> บริษัทขอเสนอต่ออายุสัญญาดังนี้</p>
-        <ol><li>ระยะเวลาเช่า <mark id="m-term">${pt}</mark></li><li>ค่าเช่า <mark id="m-rent">${baht(numOf(pr))}</mark></li><li>การชำระ <mark id="m-pay">${pp}</mark></li></ol>
-        <p>โปรดตอบกลับภายใน 7 วัน ตามใบตอบรับที่แนบ</p>
+        <ol><li>${terms}</li><li>${money}</li><li>การชำระ ${m('pay', pp)} โดยการโอนเงินเข้าบัญชีธนาคาร</li></ol>
+        <p>โปรดส่งใบตอบรับกับแบบฟอร์มแจ้งรายละเอียด พร้อมเอกสารประกอบที่ลงนามรับรองสำเนาแล้ว กลับภายใน 7 วันนับแต่วันที่ได้รับหนังสือ</p>
+        <p>ถ้ากรรมสิทธิ์ในที่ดินเปลี่ยน แบ่งแยก หรือติดภาระ เช่น จำนอง ขายฝาก โปรดแจ้งบริษัทพร้อมเอกสาร</p>
       </div>
     </div>
+    <details class="sheets">
+      <summary>ใบตอบรับกับแบบฟอร์มแจ้งรายละเอียด ออกพร้อมหนังสือจากข้อมูลชุดเดียวกัน</summary>
+      <div class="sheet" id="sheet-reply">
+        <p class="c">ใบตอบรับการต่ออายุสัญญาเช่า</p>
+        <p>ผู้ให้เช่าติ๊กยอมรับเงื่อนไข</p>
+        <ul><li>☐ ${terms}</li><li>☐ ${money}</li><li>☐ การชำระ ${m('pay', pp)}</li></ul>
+        <p>รายการเอกสารที่ผู้ให้เช่าติ๊กว่าแนบกลับ 8 รายการ: บัตรประชาชนกับทะเบียนบ้าน , หนังสือรับรองบริษัท , เอกสารสิทธิ์ในอาคาร , เอกสารสิทธิ์ในที่ดิน , สมุดบัญชีธนาคาร , หนังสือยินยอมจากเจ้าของกรรมสิทธิ์ , หนังสือยินยอมจากผู้รับจำนอง , อื่น ๆ</p>
+        <p>ผู้ให้เช่าลงชื่อ วันที่ และเบอร์โทร</p>
+      </div>
+      <div class="sheet" id="sheet-form">
+        <p class="c">แบบฟอร์มแจ้งรายละเอียด</p>
+        <p>รหัสไซต์ <mark>${t.site}</mark> ผู้ให้เช่า <mark>${t.ll}</mark></p>
+        <p>ผู้ให้เช่ากรอกที่อยู่สำหรับติดต่อและส่งเอกสาร เบอร์โทรศัพท์ อีเมล และเรื่องที่อยากแจ้งเพิ่ม</p>
+        <p>ท้ายแผ่นมีป้ายจ่าหน้าซองส่งกลับบริษัท</p>
+      </div>
+    </details>
     ${send}
     ${extra(t, 'letterfile', 'ดาวน์โหลดหนังสือ', 'ดาวน์โหลดแล้ว')}
     <button class="btn" data-go="letter">ยืนยันว่าส่งหนังสือแล้ว</button>`;
@@ -538,7 +689,14 @@ const F = {
     const ans = t.answer || dv(t, 'ans', '');
     // หน่วยราชการใช้หนังสือตามแบบของหน่วยงาน ไม่มีใบตอบรับกับกำหนด 7 วันของหนังสือมาตรฐาน
     const due7 = t.own ? `<p class="hint" id="due">ส่งหนังสือตามแบบของหน่วยงาน ${fd(sent)} บันทึกคำตอบที่หน่วยงานแจ้งกลับ</p>`
-      : `<p class="hint" id="due">ส่งหนังสือ ${fd(sent)} ครบกำหนดตอบ ${fd(due)}${late > 0 && !t.answer ? `<span class="tag bad">เลยกำหนด ${late} วัน</span>` : ''}</p>`;
+      : `<p class="hint" id="due">ส่งหนังสือ ${fd(sent)} ${viaText(t.via || 'ไปรษณีย์')} ครบกำหนดตอบ ${fd(due)}${late > 0 && !t.answer ? `<span class="tag bad">เลยกำหนด ${late} วัน</span>` : ''}</p>`;
+    // รุ่น 10: ผู้ให้เช่าตอบกลับทางไหน ตั้งต้นตามทางที่ส่ง (คำเล่าของเจ้าของงาน ส่งไปรษณีย์ส่งกลับไปรษณีย์ ส่งอีเมลตอบอีเมล)
+    const rvia = dv(t, 'r-via', t.rvia || t.via || 'ไปรษณีย์');
+    const back = `
+    <fieldset class="tiles">
+      <legend class="lab">ผู้ให้เช่าตอบกลับทาง</legend>
+      ${RVIAS.map(v => `<label class="tile radio"><input type="radio" name="r-via" value="${v}"${v === rvia ? ' checked' : ''}><span>${v}</span></label>`).join('')}
+    </fieldset>`;
     // เลยกำหนดแล้วยังไม่ตอบ: จดการติดตาม กับออกหนังสือซ้ำจากข้อมูลเดิม (ร่าง 4.4 กับ 2-07) ประวัติการติดตามคงไว้หลังออกหนังสือซ้ำ
     const chase = !t.own && late > 0 && !t.answer;
     const follow = chase || t.follows.length ? `
@@ -553,6 +711,7 @@ const F = {
       <legend class="lab">ผู้ให้เช่าตอบว่า</legend>
       ${['ต่อสัญญา', 'ไม่ต่อ'].map(a => `<label class="tile radio"><input type="radio" name="ans" value="${a}"${a === ans ? ' checked' : ''}><span>${a}</span></label>`).join('')}
     </fieldset>
+    ${back}
     <div class="two">
       <label><span class="lab">วันที่ตอบ</span><input class="field" id="r-date" data-keep value="${esc(dv(t, 'r-date', fmt(TODAY)))}"></label>
       <label><span class="lab">หมายเหตุ</span><input class="field" id="r-note" data-keep placeholder="ถ้ามี" value="${esc(dv(t, 'r-note', ''))}"></label>
@@ -569,6 +728,7 @@ const F = {
       <label><span class="lab">บันทึกการเจรจารอบนี้</span><textarea class="field" id="talk" data-keep placeholder="คุยกับใคร เสนออะไร ได้คำตอบว่าอะไร">${esc(dv(t, 'talk', ''))}</textarea></label>
       <button class="ghost${up ? ' is-set' : ''}" data-act="cdc"${up ? ' disabled' : ''}>${up ? 'ส่งต่อไม้ 2 แล้ว' : 'ส่งต่อไม้ 2 ให้ CDC ช่วยคุย'}</button>
       <p class="hint">ถ้าผู้ให้เช่าเปลี่ยนใจ เลือกคำตอบใหม่แล้วบันทึก</p>
+      ${cancelExc(t, 'ถ้าผู้ให้เช่ายืนยันไม่ต่อ')}
     </div>
     ${t.own ? '' : extra(t, 'reply', 'ถ่ายภาพใบตอบรับ', 'แนบใบตอบรับแล้ว')}
     ${MISS}
@@ -591,7 +751,9 @@ const F = {
         <label class="cell"><small>ที่ตกลง</small><select class="field" id="ag-pay" data-keep>${opts(PAYS, dv(t, 'ag-pay', a.pay))}</select></label></div></div>
     </div>
     <label><span class="lab">บันทึกการคุย</span><textarea class="field" id="n-note" data-keep placeholder="ถ้ามี">${esc(dv(t, 'n-note', ''))}</textarea></label>
-    <button class="btn" data-go="nego">บันทึกผลต่อรอง</button>`;
+    <button class="btn" data-go="nego">บันทึกผลต่อรอง</button>
+    <p class="hint">ยังเจรจาไม่จบ ออกจากงานได้เลย ค่าที่พิมพ์ไว้ยังอยู่</p>
+    ${cancelExc(t, 'ถ้าเจรจาไม่สำเร็จ')}`;
   },
 
   docs: t => `
@@ -616,12 +778,13 @@ const F = {
     const missing = DOCS[t.type].map((d, i) => t.att['d' + i] ? '' : `<li class="doc"><span>${wrapName(d)}</span><button class="ghost" data-doc="d${i}">ถ่ายรูป</button></li>`).join('');
     // ช่องที่เครื่องเติมให้เป็นพื้นเทา ช่องระยะเวลาเลือกใหม่ได้ แต่เป็นพื้นเทาจนกว่าค่าจะไม่ตรงที่ตกลง
     return `
-    ${t.back ? `<p class="alert">ถูกตีกลับจาก ${t.backFrom || 'CDC'}: ${t.back}</p>` : ''}
+    ${t.back ? `<p class="alert">ถูกตีกลับจาก ${t.backFrom ? t.backFrom + ' ผ่าน CDC' : 'CDC'}: ${t.back}</p>` : ''}
     <p class="hint">ในตัวอย่างนี้ เติมให้แล้ว 7 ช่อง ${left ? 'เหลือกรอก ' + left + ' ช่อง' : 'กรอกครบแล้ว'}</p>
+    ${t.ext ? '<p class="note" id="ext">งาน Extend ไม่ผ่านขั้นต่อรอง ระยะเวลา ค่าเช่า และการชำระตั้งต้นจากสัญญาเดิม</p>' : ''}
     <div class="two">
       <label><span class="lab">วันเริ่มสัญญา</span><input class="field" id="f-start" readonly value="${fmt(st)}"></label>
       <label><span class="lab">วันสิ้นสุดสัญญา</span><input class="field" id="f-end" readonly value="${fmt(en)}"></label>
-      <label><span class="lab">ระยะเวลา</span><select class="field${off ? ' is-' + offCls : ' is-auto'}" id="d-term">${opts(TERMS, dT + ' ปี')}</select>${off ? `<span class="hint ${offCls}">${t.back ? (t.backFrom || 'CDC') + ' ชี้จุดนี้ ' : ''}ที่ตกลงคือ ${a.term} ปี</span>` : ''}</label>
+      <label><span class="lab">ระยะเวลา</span><select class="field${off ? ' is-' + offCls : ' is-auto'}" id="d-term">${opts(TERMS, dT + ' ปี')}</select>${off ? `<span class="hint ${offCls}">${t.back ? (t.backFrom || 'CDC') + ' ชี้จุดนี้ ' : ''}${t.ext ? 'สัญญาเดิม' : 'ที่ตกลงคือ'} ${a.term} ปี</span>` : ''}</label>
       <label><span class="lab">ค่าเช่า</span><input class="field" id="f-rent" readonly value="${baht(a.rent)}"></label>
       <label><span class="lab">การชำระ</span><input class="field" id="f-pay" readonly value="${a.pay}"></label>
       <label><span class="lab">ประเภทผู้ให้เช่า</span><input class="field" readonly value="${t.type}"></label>
@@ -633,11 +796,12 @@ const F = {
       ${sel(2, 'รับเช็คงวดแรก', ['ไม่รับ', 'รับ'])}
       ${sel(3, 'การคิดค่าไฟ', ['มิเตอร์การไฟฟ้า', 'เหมาจ่าย'])}
     </div>
+    <p class="note" id="groups">ฟอร์ม Pre-Contract ใน SAR มี 6 กลุ่ม ขั้นนี้วาดแค่กลุ่มรายละเอียดร่างสัญญา กลุ่มบุคคลที่เกี่ยวข้อง&nbsp;, พื้นที่เช่า&nbsp;, การเข้าพื้นที่&nbsp;, รายการค่าใช้จ่ายกับผู้รับเงิน ตัวอย่างถือว่าใช้ของสัญญาเดิม ส่วนเอกสารที่เกี่ยวข้องคือขั้น 04</p>
     <div>
       <span class="lab">ตรวจก่อนส่ง</span>
       <ul class="track" id="precheck">
         ${item(left ? 'bad' : 'ok', left ? 'ช่องบังคับ เหลือ ' + left + ' ช่อง' : 'ช่องบังคับครบ')}
-        ${item(offCls, !off ? 'ตรงกับเงื่อนไขที่ตกลง' : t.back ? 'ระยะเวลาไม่ตรงกับที่ตกลง ต้องแก้ก่อนส่งอีกครั้ง' : 'ระยะเวลาไม่ตรงกับที่ตกลง ส่งได้ แต่ CDC อาจตีกลับ')}
+        ${item(offCls, !off ? (t.ext ? 'ตรงกับสัญญาเดิม' : 'ตรงกับเงื่อนไขที่ตกลง') : (t.ext ? 'ระยะเวลาไม่ตรงกับสัญญาเดิม' : 'ระยะเวลาไม่ตรงกับที่ตกลง') + (t.back ? ' ต้องแก้ก่อนส่งอีกครั้ง' : ' ส่งได้ แต่ CDC อาจตีกลับ'))}
         ${item(lack ? 'warn' : 'ok', lack ? 'เอกสารประกอบยังขาด ' + lack + ' รายการ ส่งได้ แล้วแนบตามทีหลัง' : 'เอกสารประกอบครบ')}
       </ul>
     </div>
@@ -731,16 +895,16 @@ function paperOf(t) {
 }
 
 const SRC = {
-  letter: 'ขั้น Waiting for Letter Issued กับปุ่ม Export Letter ของ SAR และตัวอย่างหนังสือในสไลด์ การดูตัวอย่างหนังสือก่อนออกเป็นข้อเสนอใหม่',
-  response: 'ขั้น Waiting for LL Responsed ของ SAR คำตอบต่อหรือไม่ต่อ กับลำดับไม้ 1 ถึง 3 ตามคำเล่าของเจ้าของงาน (ไม้ 2 และ 3 เจ้าของงานเล่าว่าส่งเมลให้ CDC หรือผู้บริหาร ตัวอย่างส่งไม้ 2 ถึง CDC เป็นค่าเริ่มต้นของผู้ร่าง ใครจดรอบของไม้ 2 ไม้ 3 ยังรอคำตอบ) ป้ายครบกำหนดตอบ การถ่ายภาพใบตอบรับ และการส่งสรุปเรื่องต่อในเครื่องมือเป็นข้อเสนอใหม่',
-  nego: 'ขั้น Waiting for Negotiating ของ SAR ซึ่งเจ้าของงานเล่าว่าตอบต่อแล้วมาขั้นนี้ และมีคนอยากให้ขั้นนี้เป็น ESIGN ซึ่งตัวอย่างยังไม่ได้ทำ การเก็บเงื่อนไขเป็นช่องเป็นข้อเสนอใหม่',
-  docs: 'รายการเอกสารต่อประเภทผู้ให้เช่าในสไลด์ การตั้งเป็นขั้นแยกกับการถ่ายรูปแนบเป็นข้อเสนอใหม่ ยังไม่รู้ว่าวันนี้เก็บเอกสารที่ขั้นไหน การเก็บภาพเอกสารส่วนบุคคลรอฝ่ายกฎหมายกับ Security',
-  pre: 'ขั้น Waiting for Pre-Contract Submitted กับฟอร์มร่างสัญญาของ SAR ตัวอย่างแสดง 11 ช่อง ฟอร์มจริงมีช่องบังคับอย่างน้อย 14 ช่อง จำนวนที่เติมให้ได้จริงยังไม่รู้ ชื่อช่องยังไม่ยืนยัน การตรวจก่อนส่งด้วยเครื่องเป็นข้อเสนอใหม่',
-  review: 'ขั้นตรวจของ CDC กับ SMT และทีมที่ตรวจแต่ละขั้น ตามคำเล่าของเจ้าของงาน คงไว้ทุกขั้น',
-  contract: 'กล่อง 3 ของผังอนาคต Export Contract กับคำเล่าว่าเข้าขั้นเซ็นเมื่อสัญญาเป็น Pre-active ยังไม่มีภาพจอของ SAR ในขั้นนี้ หน้าตาสัญญาเป็นของสมมติ',
-  sign: 'ขั้น Waiting for Contract Signing ทั้งสองสาย กับกล่อง 3 E-signing การเซ็นทางลิงก์อีเมลกับการตรวจบัตรผู้เซ็นเป็นข้อเสนอใหม่ ทั้งหมดรอฝ่ายกฎหมายกับ Security เจ้าของงานเล่าว่าใบเสร็จค่าเช่างวดแรกอยู่ใน Pay in การให้คนหน้างานแนบเองเป็นค่าเริ่มต้นของผู้ร่าง',
-  check: 'ขั้น Waiting for Sign Contract Submitted to SMT ถึง Completed Contract ตามคำเล่าของเจ้าของงาน คงไว้ทุกขั้น',
-  done: 'ขั้น Completed Contract',
+  letter: 'ขั้น Waiting for Letter Issued กับปุ่ม Export Letter ของ SAR และแบบฟอร์มหนังสือที่ใช้จริง (ไฟล์ Word แบบผสานจดหมาย มีหนังสือ ใบตอบรับ และแบบฟอร์มแจ้งรายละเอียด) เจ้าของงานเล่าว่าส่งทางไปรษณีย์หรืออีเมล ผังของคนทำระบบ SAR มีขั้นพิมพ์หนังสือ (Print Issue Letter) ต่อจากออกหนังสือ การออกทุกแผ่นจากข้อมูลในเครื่องมือกับการดูตัวอย่างก่อนออกเป็นข้อเสนอใหม่',
+  response: 'ขั้น Waiting for LL Responsed ของ SAR คำตอบต่อหรือไม่ต่อ กับลำดับไม้ 1 ถึง 3 ตามคำเล่าของเจ้าของงาน (ไม้ 2 และ 3 เจ้าของงานเล่าว่าส่งเมลให้ CDC หรือผู้บริหาร ตัวอย่างส่งไม้ 2 ถึง CDC เป็นค่าเริ่มต้นของผู้ร่าง ใครจดรอบของไม้ 2 ไม้ 3 ยังรอคำตอบ) ผังของคนทำระบบ SAR วาดทุกคำตอบไปขั้นเจรจา และวางการวนรอเจรจากับทางเจ้าของปฏิเสธไว้ที่ขั้นเจรจา ตัวอย่างยังวางบันไดไว้ขั้นนี้ตามคำเล่า ผู้ให้เช่าตอบกลับทางเดียวกับที่ส่งตามคำเล่าของเจ้าของงาน ป้ายครบกำหนดตอบ การถ่ายภาพใบตอบรับ การส่งสรุปเรื่องต่อ และการส่งขอยกเลิกให้ CDC ยืนยันในเครื่องมือเป็นข้อเสนอใหม่',
+  nego: 'ขั้น Waiting for Negotiating ของ SAR ซึ่งเจ้าของงานเล่าว่าตอบต่อแล้วมาขั้นนี้ และมีคนอยากให้ขั้นนี้เป็น ESIGN ซึ่งตัวอย่างยังไม่ได้ทำ ผังของคนทำระบบ SAR ให้ผลการเจรจามี 3 ทาง คือ รอการเจรจา (อยู่ขั้นนี้ต่อ) , เจรจาสำเร็จ (ไป Pre-Contract) , เจ้าของปฏิเสธ (ยกเลิกงาน) การเก็บเงื่อนไขเป็นช่องกับการให้ CDC ยืนยันการยกเลิกเป็นข้อเสนอใหม่',
+  docs: 'รายการเอกสารต่อประเภทผู้ให้เช่าในสไลด์ ผังของคนทำระบบ SAR ให้บันทึกเอกสารที่เกี่ยวข้องเป็นส่วนหนึ่งของ Pre-Contract แล้วส่งเข้า SMT เป็นรายการเอกสาร การตั้งเป็นขั้นแยกกับการถ่ายรูปแนบเป็นข้อเสนอใหม่ การเก็บภาพเอกสารส่วนบุคคลรอฝ่ายกฎหมายกับ Security',
+  pre: 'ขั้น Waiting for Pre-Contract Submitted กับแผงรายละเอียดร่างสัญญาในภาพ SAR ผังของคนทำระบบ SAR แบ่ง Pre-Contract เป็น 6 กลุ่ม และมีปุ่มพิมพ์ร่างสัญญา (Print Pre-Contract) ตัวอย่างแสดง 11 ช่องของกลุ่มเดียว แผงนั้นมีช่องบังคับอย่างน้อย 14 ช่อง จำนวนที่เติมให้ได้จริงยังไม่รู้ ชื่อช่องยังไม่ยืนยัน การใช้กลุ่มอื่นจากสัญญาเดิมกับการตรวจก่อนส่งด้วยเครื่องเป็นข้อเสนอใหม่',
+  review: 'ขั้นตรวจของ CDC กับ SMT และทีมที่ตรวจแต่ละขั้น ตามคำเล่าของเจ้าของงาน คงไว้ทุกขั้น ผังหน้าจอของคนทำระบบ SAR เขียนทางอนุมัติของงาน Renew ว่า Sub ไป Negotiate ผังขั้นตอนวาดฝั่ง SMT เป็นกล่องเดียว แล้ว SMT ส่งข้อมูลกลับ SAR (Interface data) ก่อนขั้นเซ็น',
+  contract: 'กล่อง 3 ของผังอนาคต Export Contract กับคำเล่าว่าเข้าขั้นเซ็นเมื่อสัญญาเป็น Pre-active ผังของคนทำระบบ SAR วางการเซ็นและอัปโหลดสัญญาไว้ฝั่ง SAR หลัง SMT ส่งข้อมูลกลับ ยังไม่รู้ว่าสัญญาฉบับเซ็นออกจากระบบไหน ยังไม่มีภาพจอของ SAR ในขั้นนี้ หน้าตาสัญญาเป็นของสมมติ',
+  sign: 'ขั้น Waiting for Contract Signing ทั้งสองสาย กับกล่อง 3 E-signing ผังของคนทำระบบ SAR มีขั้นเซ็นและอัปโหลดสัญญา (Contract Signing &amp; Upload) แล้วส่งสัญญาที่เซ็นแล้วเข้า SMT แต่ไม่มีขั้นเช็ค การเซ็นทางลิงก์อีเมลกับการตรวจบัตรผู้เซ็นเป็นข้อเสนอใหม่ ทั้งหมดรอฝ่ายกฎหมายกับ Security เจ้าของงานเล่าว่าใบเสร็จค่าเช่างวดแรกอยู่ใน Pay in การให้คนหน้างานแนบเองเป็นค่าเริ่มต้นของผู้ร่าง',
+  check: 'ขั้น Waiting for Sign Contract Submitted to SMT ถึง Completed Contract ตามคำเล่าของเจ้าของงาน คงไว้ทุกขั้น ผังของคนทำระบบ SAR ไม่มีขั้นตรวจหลังเซ็น แต่มีขั้นบันทึกเลขสัญญากลับเข้า SAR (Update Contract Code) ซึ่งตารางสถานะเดิมไม่มี ยังไม่รู้ว่าวันนี้ยังมีไหม',
+  done: 'ขั้น Completed Contract ผังของคนทำระบบ SAR บันทึกเลขสัญญากลับเข้า SAR (Update Contract Code) ก่อนจบ',
 };
 // งานที่ผู้ให้เช่าออกสัญญาเอง ใช้บรรทัดที่มาชุดนี้แทนชุดปกติ
 const SRC_OWN = {
@@ -753,16 +917,25 @@ const SRC_OWN = {
 function caseSrc(t) {
   const s = [];
   if (t.at === 'response' && !t.answer && lateDays(t) > 0) s.push('งานนี้เลยกำหนดตอบ การจดการติดตามกับการออกหนังสือซ้ำจากข้อมูลเดิมเป็นข้อเสนอของผู้ร่าง');
-  if (t.at === 'pre' && t.backFrom) s.push('ทางตีกลับจากหัวหน้า SMT ที่แก้ใน SMT ไม่ได้มาจากคำเล่าของเจ้าของงาน งานกลับมาหาคนที่คีย์เหมือนงานที่ CDC ตีกลับ การติดป้ายว่ามาจากฝั่ง SMT เป็นข้อเสนอของผู้ร่าง');
+  // รุ่น 9: ผังของคนทำระบบ SAR ส่งงานที่ SMT ไม่อนุมัติกลับไปก่อนขั้นส่งร่างเข้า SMT ไม่ย้อนมาที่ Pre-Contract ตรง
+  // ต่างจากคำเล่า ทางที่เข้ากับทุกต้นทางคือผ่าน CDC ก่อน (ตีความ ผู้ตรวจอีกคนชี้ 02/10 ว่าเดิมจอไม่บอกเรื่องนี้)
+  if (t.at === 'pre' && t.backFrom) s.push('คำเล่าของเจ้าของงานบอกว่าหัวหน้า SMT ตีกลับเมื่อแก้ใน SMT ไม่ได้ ผังขั้นตอนของคนทำระบบ SAR ส่งงานที่ SMT ไม่อนุมัติกลับไปก่อนขั้นส่งร่างเข้า SMT ซึ่งตรงกับสถานะ 1.1.1 ที่ CDC ถือ และหน้าสรุปของ SAR มีการ์ด Return Pre-Contract to Edit (From Nego) งานจึงผ่าน CDC ก่อนกลับมาหาคนที่คีย์ (ตีความ) การติดป้ายว่ามาจากฝั่ง SMT เป็นข้อเสนอของผู้ร่าง');
+  if (t.at === 'pre' && t.back && !t.backFrom) s.push('ทางที่ CDC ตีกลับมาหาคนที่คีย์มาจากคำเล่าของเจ้าของงาน กับการ์ด Return Pre-Contract to Edit (From Nego) บนหน้าสรุปของ SAR ผังขั้นตอนของคนทำระบบ SAR ไม่ได้วาดทางนี้ การชี้จุดที่ต้องแก้กับการปิดปุ่มส่งจนกว่าจะแก้เป็นข้อเสนอของผู้ร่าง');
+  if (t.at === 'review' && t.backFrom) s.push('งานที่ฝั่ง SMT ตีกลับแล้วแก้ส่งใหม่ เริ่มที่ด่าน CDC ตรวจร่างอีกครั้งตามค่าเริ่มต้นของผู้ร่าง ผังขั้นตอนของคนทำระบบ SAR ส่งงานกลับไปก่อนขั้นส่งร่างเข้า SMT จะต้องผ่าน CDC อีกไหมยังรอคำตอบ');
   if (t.at === 'contract' && t.nonstd) s.push('คำว่า Non-STD Contract ในหมายเหตุของภาพ SAR อ่านได้มั่นใจต่ำ การแนบไฟล์สัญญาที่ผ่านการตรวจแล้วแทนการออกจากแม่แบบเป็นข้อเสนอของผู้ร่าง');
   if (t.at === 'sign' && t.stop) s.push('สไลด์บอกว่ากรรมสิทธิ์เปลี่ยนระหว่างสัญญาให้ใช้เอกสารของเจ้าของที่ดินคนใหม่ ผู้ตัดสินเป็นใครยังไม่รู้ การหยุดเซ็นแล้วแจ้ง CDC ตัดสินเป็นข้อเสนอของผู้ร่าง');
   if (t.at === 'sign' && t.signers > 1) s.push('ต้นทางไม่ได้บอกว่าสัญญาหนึ่งฉบับมีผู้ให้เช่าหลายคนได้หรือไม่ การเซ็นกระดาษให้ครบทุกคนแล้วถ่ายแนบในเฟสแรก กับการติ๊กตรวจบัตรครั้งเดียวครบทุกคน เป็นข้อเสนอของผู้ร่าง');
   // ไม่ขึ้นระหว่างรอผู้ให้เช่าเซ็นทางลิงก์ รวมงานสายเช็คที่ยังไม่แนบใบเสร็จ (ตาใหม่รุ่น 8 เจอก้อนนี้ขึ้นใน SMP0108 หลังส่งลิงก์)
-  if (t.at === 'sign' && !viewing(t) && !(t.mode === '1' && t.link === 'sent')) s.push('ทางเซ็นต่อไม่ได้ (ผู้ให้เช่าขอแก้เงื่อนไข และคู่สัญญาเปลี่ยน) เป็นข้อเสนอของผู้ร่าง');
+  if (t.at === 'sign' && !viewing(t) && !(t.mode === '1' && t.link === 'sent')) s.push('ทางเซ็นต่อไม่ได้ (ผู้ให้เช่าขอแก้เงื่อนไข และคู่สัญญาเปลี่ยน) เป็นข้อเสนอของผู้ร่าง ผังขั้นตอนของคนทำระบบ SAR ไม่มีเส้นย้อนจากช่วงเซ็น');
   if (t.at === 'review' && t.asks.length) s.push('การบันทึกสิ่งที่ผู้ให้เช่าขอ ยกเลิกรอบเซ็น แล้วส่งกลับทางอนุมัติตั้งแต่ด่านแรกเป็นข้อเสนอของผู้ร่าง');
   // ร่างหัวข้อ 4.4 บอกว่าวิธีจัดการทั้งก้อน (ทำใน SAR ตามเดิม กับติดป้าย) เป็นข้อเสนอ รุ่น 7 เขียนการทำใน SAR เป็นข้อเท็จจริง (ตาใหม่เจอ 01/10)
   // งานออกจากเครื่องมือที่ขั้นร่างสัญญา เพราะปุ่มรวมกับแยกสัญญาในภาพ SAR อยู่ในฟอร์มร่างสัญญา (ตาใหม่รุ่น 8 ชี้ว่าเดิมหยุดที่ขั้น 04 โดยไม่มีที่มา)
   if (t.merge) s.push('ภาพ SAR เห็นปุ่มรวมสัญญากับแยกสัญญาอยู่ในฟอร์มร่างสัญญา ยังไม่รู้ว่าทำงานอย่างไร ขั้นที่งานออกจากเครื่องมือ (ร่างสัญญา) , การทำใน SAR ตามเดิมกับการติดป้ายเป็นข้อเสนอของผู้ร่าง');
+  // รุ่น 9 ผังของคนทำระบบ SAR (02/10/2026)
+  if (t.ext) s.push('ผังขั้นตอนของคนทำระบบ SAR วางงาน Renew กับ Extend ไว้ในกระบวนการเดียวกัน งาน Extend ไปทำ Pre-Contract ตรง ไม่ผ่านออกหนังสือ คำตอบ และเจรจา ผังหน้าจอไม่มีเมนู Extend แยก งาน Extend ต่างจาก Renew อย่างไรยังรอคำตอบ การตั้งค่าจากสัญญาเดิมเป็นข้อเสนอของผู้ร่าง');
+  // รุ่น 10 คำเล่าของเจ้าของงาน 02/10/2026 เรื่องขอขยายระยะเวลาก่อนรื้อถอน
+  if (t.cancel && t.cancel.ext) s.push('คำเล่าของเจ้าของงาน: ผู้ให้เช่าไม่ต่อ แต่บริษัทยังรื้อถอนไม่ทัน จึงทำหนังสือขอขยายระยะเวลา เช่น 3 หรือ 6 เดือน อาจเพิ่มค่าเช่า และบริษัทต้องจ่ายค่าเช่าช่วงขยาย ผู้ให้เช่าอาจยังไม่ต่อสัญญาอยู่ดี การส่งเรื่องให้ CDC ยืนยันกับหนังสือตัวอย่างเป็นข้อเสนอของผู้ร่าง สัญญาช่วงขยายทำเป็นงานแบบไหนใน SAR ยังรอคำตอบ');
+  else if (t.cancel) s.push('ผังขั้นตอนของคนทำระบบ SAR ให้ผลการเจรจาที่เจ้าของปฏิเสธไปยกเลิกงาน (Cancel Task) การให้ CDC ยืนยันก่อนเป็นการตีความจากการ์ด Waiting for Cancel Task บนหน้าสรุปของ SAR ที่อยู่ในแถบสีของ Negotiate');
   return s;
 }
 
@@ -776,8 +949,11 @@ function viewTask(id) {
     const i = idx(k), s = STEP[k], gate = !s.no, no = gate ? (i < now ? 'ผ่าน' : i === now ? 'รอ' : 'ตรวจ') : s.no;
     if (i < now) return `<li class="step is-done"><div class="step-head"><span class="no">${no}</span><span class="step-name">${s.name}</span><span class="step-note">${summary(t, k)}</span></div></li>`;
     if (i > now) return `<li class="step is-next"><div class="step-head"><span class="no">${no}</span><span class="step-name">${s.name}</span></div></li>`;
-    return `<li class="step is-now${gate || viewing(t) ? ' is-view' : ''}" id="now"><div class="step-head"><span class="no">${no}</span><h2 class="step-name">${s.name}</h2></div><div class="body">${inSar(t) ? SAR_ONLY : F[k](t)}</div></li>`;
+    return `<li class="step is-now${gate || viewing(t) ? ' is-view' : ''}" id="now"><div class="step-head"><span class="no">${no}</span><h2 class="step-name">${s.name}</h2></div><div class="body">${inSar(t) ? SAR_ONLY : t.cancel ? cancelBody(t) : F[k](t)}</div></li>`;
   };
+  // งาน Extend ไม่มีขั้น 01 ถึง 03 งานที่ส่งขอยกเลิกแล้วแสดงขั้นในกล่อง 2 ถึงขั้นที่ขอยกเลิก ที่เหลือเป็นแถวเดียว (รุ่น 9)
+  const box2 = t.ext ? ['docs', 'pre'] : ['letter', 'response', 'nego', 'docs', 'pre'];
+  const shown = t.cancel ? box2.slice(0, box2.indexOf(t.at) + 1) : box2;
   app.innerHTML = `
     <h1>${t.site}</h1>
     <p class="sub">${t.ll}</p>
@@ -792,15 +968,15 @@ function viewTask(id) {
     </section>
     <p class="group">กล่อง 2 เตรียมสัญญา ขั้น 01 ถึง 05</p>
     <ol class="steps">${now > idx('review')
-      ? '<li class="step is-done is-sum"><div class="step-head"><span class="step-name">ขั้น 01 ถึง 05</span><span class="step-note">เสร็จครบ</span></div></li>'
-      : ['letter', 'response', 'nego', 'docs', 'pre'].map(card).join('')}</ol>
-    ${inSar(t) ? REST : `<p class="group">ด่านตรวจเดิมใน SAR กับ SMT ไม่อยู่ในกล่อง</p>
+      ? `<li class="step is-done is-sum"><div class="step-head"><span class="step-name">${t.ext ? 'ขั้น 04 ถึง 05' : 'ขั้น 01 ถึง 05'}</span><span class="step-note">เสร็จครบ</span></div></li>`
+      : (t.ext ? SKIP : '') + shown.map(card).join('')}</ol>
+    ${inSar(t) ? REST : t.cancel ? STOPPED(t) : `<p class="group">ด่านตรวจเดิมใน SAR กับ SMT ไม่อยู่ในกล่อง</p>
     <ol class="steps">${card('review')}</ol>
     <p class="group">กล่อง 3 เซ็นสัญญา ขั้น 06 ถึง 07</p>
     <ol class="steps">${['contract', 'sign'].map(card).join('')}</ol>
     <p class="group">ด่านตรวจเดิมใน SAR กับ SMT ไม่อยู่ในกล่อง</p>
     <ol class="steps">${card('check')}</ol>`}
-    ${inSar(t) ? '' : srcLine((t.own && SRC_OWN[t.at]) || SRC[t.at])}${caseSrc(t).map(srcLine).join('')}`;
+    ${inSar(t) || t.cancel ? '' : srcLine((t.own && SRC_OWN[t.at]) || SRC[t.at])}${caseSrc(t).map(srcLine).join('')}`;
   keepWords(app);
   if (t.at === 'sign') initSign(t); else gate();
 }
@@ -926,6 +1102,24 @@ function act(t, name, b) {
   }
   // คู่สัญญาเปลี่ยน: หยุดการเซ็น แจ้ง CDC ตัดสิน งานย้ายไปกลุ่มรอคนอื่น
   if (name === 'party-go') { t.stop = { date: fmt(TODAY), note: t.dr['party-text'].trim() }; delete t.dr['party-text']; keep(t); toast('หยุดการเซ็นแล้ว แจ้ง CDC แล้ว'); }
+  // ผู้ให้เช่าปฏิเสธ (รุ่น 9): ส่งขอยกเลิกให้ CDC ยืนยัน งานไม่เดินต่อ ย้ายไปกลุ่มรอคนอื่น
+  // กดจากก้อนไม่ต่อของขั้น 02 ถือว่าตอบไม่ต่อแม้ยังไม่กดบันทึกคำตอบ บันทึกการเจรจาที่พิมพ์ค้างไว้เก็บเข้าประวัติด้วย
+  if (name === 'open-cancel') { const f = document.getElementById('cancel-form'); f.hidden = !f.hidden; document.getElementById('ext-form').hidden = true; }
+  // รุ่น 10: ฟอร์มขอขยายระยะเวลากับฟอร์มขอยกเลิกเปิดทีละอัน
+  if (name === 'open-ext') { const f = document.getElementById('ext-form'); f.hidden = !f.hidden; document.getElementById('cancel-form').hidden = true; }
+  if (name === 'ext-go') {
+    if (t.at === 'response') { logTalk(t); t.answer = 'ไม่ต่อ'; }
+    t.cancel = { date: fmt(TODAY), note: t.dr['ext-text'].trim(),
+      ext: { months: parseInt(document.getElementById('ext-months').value, 10), rent: numOf(document.getElementById('ext-rent').value) || t.rent } };
+    ['ext-text', 'ext-months', 'ext-rent'].forEach(k => delete t.dr[k]);
+    keep(t); toast('ส่งเรื่องขยายระยะเวลาให้ CDC แล้ว');
+  }
+  if (name === 'cancel-go') {
+    if (t.at === 'response') { logTalk(t); t.answer = 'ไม่ต่อ'; }
+    t.cancel = { date: fmt(TODAY), note: t.dr['cancel-text'].trim() }; delete t.dr['cancel-text'];
+    keep(t); toast('ส่งให้ CDC ยืนยันยกเลิกแล้ว');
+  }
+  if (name === 'cancel-ok') { t.cancel.done = true; keep(t); toast(t.cancel.ext ? 'CDC ยืนยันแล้ว ขยายระยะเวลา' : 'CDC ยืนยันแล้ว งานยกเลิก'); }
   if (name === 'link-signed') { t.link = 'signed'; keep(t); toast('ผู้ให้เช่าเซ็นทางลิงก์แล้ว'); }
   if (name === 'link-cancel') { t.link = ''; keep(t); toast('ยกเลิกลิงก์แล้ว แก้อีเมลแล้วส่งใหม่ได้'); }
   // เปิดปิดสัญญาในที่เดิม ไม่วาดขั้นใหม่ ลายมือชื่อที่กำลังเซ็นจึงไม่หาย
@@ -946,10 +1140,15 @@ function advance(t, k) {
     const typed = parseTh(document.getElementById('l-date').value);
     t.sent = typed || TODAY; t.track = document.getElementById('l-track').value.trim();
     if (!typed) msg = 'อ่านวันที่ส่งไม่ได้ ใช้วันนี้แทน';
+    // รุ่น 10: จำทางส่ง ส่งทางอีเมลไม่มีเลขพัสดุ
+    t.via = (document.querySelector('input[name="l-via"]:checked') || {}).value || 'ไปรษณีย์';
+    if (t.via === 'อีเมล') { t.lmail = document.getElementById('l-mail').value.trim(); t.track = ''; }
   }
   if (k === 'response') {
     t.answer = (document.querySelector('input[name=ans]:checked') || {}).value;
-    // ไม่ต่อ = งานยังอยู่ขั้นนี้ (ใน SAR คือ Waiting for LL Responsed) จนกว่าจะเจรจาได้
+    t.rvia = (document.querySelector('input[name="r-via"]:checked') || {}).value || t.via;
+    // ไม่ต่อ = งานยังอยู่ขั้นนี้ (ใน SAR คือ Waiting for LL Responsed ตามคำเล่า) จนกว่าจะเจรจาได้
+    // ผังของคนทำระบบให้ทุกคำตอบไปขั้นเจรจาแล้ววนรอเจรจาที่นั่น ร่างข้อ 40 ถามว่าจริงอยู่ขั้นไหน (รุ่น 9)
     if (t.answer === 'ไม่ต่อ') { logTalk(t); return 'บันทึกแล้ว งานยังอยู่ขั้นนี้'; }
   }
   if (k === 'nego') {
@@ -975,7 +1174,8 @@ function viewAbout() {
     'เฟสแรก SAR ยังอยู่ เครื่องมือเป็นหน้าเว็บด้านหน้า ส่งผลเข้า SAR แล้ว SAR เดินสถานะเดิมต่อ ต่างจากผังอนาคตในสไลด์ที่เครื่องมือเข้า SMT ตรง การส่งเข้า SAR มาจากข้อเสนอเชิงถามในที่ประชุม ยังไม่ใช่มติ',
     'ด่านตรวจของ CDC, SMT และ CPA คงไว้ทุกขั้น เครื่องมือแสดงสถานะให้ดูอย่างเดียว ผังอนาคตในสไลด์ย้ายด่าน CDC ไปหลัง SMT ตัวอย่างนี้คงไว้ที่เดิม',
     'ผู้ใช้หลักคือ Vendor กับ NG_TRUE บนแท็บเล็ตหรือมือถือ ตัวอย่างนี้เปิดในบทบาท Vendor ส่วนร่างสัญญาส่งต่อให้ CPA กรอกบนจอคอมได้',
-    'ตัวอย่างวาดเส้นทางหลักกับกรณีพิเศษ 11 จาก 13 แบบในร่าง และการตีกลับจากฝั่ง SMT ยังไม่มีการทำงานตอนไม่มีสัญญาณ และสถานะที่ถูกเปลี่ยนใน SAR โดยไม่ผ่านเครื่องมือ',
+    'ตัวอย่างวาดเส้นทางหลักครบ พร้อมกรณีพิเศษ 12 จาก 14 แบบในร่าง การตีกลับจากฝั่ง SMT งาน Extend การขอยกเลิกเมื่อผู้ให้เช่าปฏิเสธ และการขอขยายระยะเวลาเมื่อยังรื้อถอนไม่ทัน ส่วน 2 แบบที่ยังไม่มีคือการทำงานตอนไม่มีสัญญาณ กับสถานะที่ถูกเปลี่ยนใน SAR โดยไม่ผ่านเครื่องมือ',
+    'หนังสือในขั้น 01 ทำตามแบบฟอร์มจริงที่ได้มา 02/10/2026 คือหนังสือ ใบตอบรับ และแบบฟอร์มแจ้งรายละเอียด ออกจากข้อมูลชุดเดียว ข้อความในตัวอย่างเขียนใหม่ด้วยข้อมูลสมมติ',
     'การจับคู่ขั้น 01 ถึง 05 กับกล่อง 2 และขั้น 06 ถึง 07 กับกล่อง 3 เป็นการตีความของผู้ร่าง ไม่มีต้นทางจับคู่ให้',
     'การเซ็นบนจอ การเซ็นทางลิงก์ การตรวจบัตรผู้เซ็น และการเก็บภาพเอกสารส่วนบุคคลของผู้ให้เช่า รอฝ่ายกฎหมายกับ Security',
     'ชื่อช่องในร่างสัญญาอ่านจากภาพหน้าจอ SAR ยังไม่ยืนยัน',
@@ -1044,19 +1244,31 @@ app.addEventListener('click', e => {
     if (!scrollToNow(true)) scrollTo(0, 0);
   }
 });
-const MARK = { 'p-term': v => v, 'p-rent': v => baht(numOf(v)), 'p-pay': v => v };
+// รุ่น 10: แก้ข้อเสนอแล้วช่องที่เติมให้ในหนังสือกับใบตอบรับเปลี่ยนพร้อมกันทุกช่อง (ตัวอย่างจริงใบตอบรับไม่ตรงกับหนังสือ)
+const MARK = { 'p-term': 1, 'p-rent': 1, 'p-pay': 1 };
+function letterMarks(t) {
+  const term = parseInt(document.getElementById('p-term').value, 10), rent = numOf(document.getElementById('p-rent').value), [s, e] = period(t, term);
+  const v = { term: term + ' ปี', from: fmt(s), to: fmt(e), rent: baht(rent), words: thaiWords(rent) + 'บาทถ้วน', pay: document.getElementById('p-pay').value };
+  document.querySelectorAll('#now [data-m]').forEach(m => { if (m.dataset.m === 'words') m.innerHTML = wordsHtml(v.words); else m.textContent = v[m.dataset.m]; });
+  // เขียนทับแล้วคำประสมในช่อง (บาทต่อปี รายเดือน) หลุดจากก้อนห้ามตัด ห่อใหม่
+  keepWords(document.getElementById('now'));
+}
 app.addEventListener('input', e => {
   const el = e.target, t = cur();
   if (el.id === 'q') { query = el.value; listRows(); return; }
   // ช่องที่ติด data-keep เก็บค่าลงงานทันทีที่พิมพ์หรือเลือก
   if (t && el.hasAttribute('data-keep')) t.dr[el.id] = el.value;
-  if (MARK[el.id]) { const m = document.getElementById('m' + el.id.slice(1)); if (m) m.textContent = MARK[el.id](el.value); }
-  // ปุ่มยืนยันของทางเซ็นต่อไม่ได้เปิดเมื่อพิมพ์รายละเอียดแล้ว
-  if (el.id === 'ask-text' || el.id === 'party-text') document.querySelector(`[data-act="${el.id.split('-')[0]}-go"]`).disabled = !el.value.trim();
+  if (MARK[el.id]) { letterMarks(t); }
+  if (el.id === 'ext-text') document.querySelector('[data-act="ext-go"]').disabled = !el.value.trim();
+  // ปุ่มยืนยันของทางเซ็นต่อไม่ได้ กับปุ่มส่งขอยกเลิก เปิดเมื่อพิมพ์รายละเอียดแล้ว
+  if (el.id === 'ask-text' || el.id === 'party-text' || el.id === 'cancel-text') document.querySelector(`[data-act="${el.id.split('-')[0]}-go"]`).disabled = !el.value.trim();
 });
 app.addEventListener('change', e => {
   const el = e.target, t = cur();
   if (el.name === 'ans') { t.dr.ans = el.value; document.getElementById('no-renew').hidden = el.value !== 'ไม่ต่อ'; gate(); return; }
+  // รุ่น 10: ทางส่งเปลี่ยนช่องที่ต้องกรอก ไปรษณีย์ใช้เลขพัสดุ อีเมลใช้อีเมลผู้ให้เช่า ไม่วาดขั้นใหม่ ค่าที่พิมพ์ค้างไว้ไม่หาย
+  if (el.name === 'l-via') { t.dr['l-via'] = el.value; document.getElementById('via-post').hidden = el.value !== 'ไปรษณีย์'; document.getElementById('via-mail').hidden = el.value !== 'อีเมล'; return; }
+  if (el.name === 'r-via') { t.dr['r-via'] = el.value; return; }
   if (el.dataset.pre !== undefined) { (t.pre = t.pre || ['', '', '', ''])[+el.dataset.pre] = el.value; keep(t); return; }
   if (el.id === 'd-term') { t.dTerm = parseInt(el.value, 10); keep(t); }
 });
