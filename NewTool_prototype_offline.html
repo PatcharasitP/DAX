@@ -85,6 +85,8 @@ textarea.field{min-height:84px;resize:vertical}
 .step.is-sum .step-name,.step.is-sum .step-note{grid-column:1 / 3}
 .step.is-next{background:transparent;border-style:dashed}
 .step.is-next .step-name{font-weight:400;color:var(--muted)}
+.step.is-out{background:transparent;padding:12px 18px}
+.step.is-out .step-name{font-weight:400;color:var(--muted)}
 .step.is-now{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent);scroll-margin-top:72px}
 .step.is-now .no{color:var(--accent);font-weight:600}
 .step.is-view{border-color:var(--frame);box-shadow:none}
@@ -188,7 +190,7 @@ textarea.field{min-height:84px;resize:vertical}
   main{padding:20px 16px 72px}
   .row{padding:12px 14px}
   .step{padding:14px}
-  .step.is-done{padding:10px 14px}
+  .step.is-done,.step.is-out{padding:10px 14px}
   .doc{padding:10px 12px;font-size:15px}
   .doc .ghost{padding:8px 12px}
   .cmp-c > label.cell{grid-column:1 / -1}
@@ -264,7 +266,10 @@ const wrapName = s => s.split('|').map(c => `<span class="nb">${c}</span>`).join
 // ผู้หักล้าง รุ่น 4 เจอหลายจุดที่ 320 ถึง 390 แก้ทีละจุดไม่ครบ จึงห่อหลังวาดทุกครั้ง
 // รุ่น 7 ฟ้าเห็น ผู้/ร่าง ตกบรรทัดในภาพมือถือ วัดทุกจอที่ความกว้าง 320 ถึง 1024 แล้วเติมคำที่ถูกตัดจริงและอ่านแล้วความหมายเพี้ยน
 // หรือเหลือคำค้างท้ายบรรทัด (ผู้ให้/เช่า , ค่า/เช่า , ใบ/เสร็จ , แม่/แบบ , ส่วน/บุคคล ...) 01/10/2026
-const KEEP = /เครื่องมือ|หน่วยงาน|บาทต่อปี|งวดแรก|รายเดือน|รายปี|ผู้ให้เช่า|ผู้เช่า|ผู้ร่าง|ผู้เซ็น|ผู้บริหาร|ผู้ตัดสิน|ค่าเช่า|ค่าเริ่มต้น|ใบเสร็จ|ใบตอบรับ|เจ้าของงาน|ข้อเสนอ|ครบกำหนด|คู่สัญญา|ระยะเวลา|ส่วนบุคคล|หน้างาน|แม่แบบ|ต่ออายุ|หน้าจอ|มือถือ/g;
+// รุ่น 8 วัดซ้ำหลังเพิ่มข้อความใหม่ เจอ ด่าน/แรก , ครั้ง/เดียว , ขั้นที่/เหลือ , ทำ/ต่อใน SAR (อ่านเป็นต่อสัญญาได้) , งาน/นี้
+// และเห็นจากภาพว่า เดิม กับ เดียว ตกไปอยู่บรรทัดเดียวโดด ๆ (ตาม/เดิม , อย่าง/เดียว) จึงเติมอีก 7 คำ
+// แล้วไล่คำศัพท์ของงานนี้ในผลวัด เจอ ตี/กลับ (อ่านเป็นตี) , คำ/ตอบ , ชื่อกรณี รวม/สัญญา แยก/สัญญา กับชื่อขั้น ร่าง/สัญญา เติมอีก 5 คำ
+const KEEP = /เครื่องมือ|หน่วยงาน|บาทต่อปี|งวดแรก|รายเดือน|รายปี|ผู้ให้เช่า|ผู้เช่า|ผู้ร่าง|ผู้เซ็น|ผู้บริหาร|ผู้ตัดสิน|ค่าเช่า|ค่าเริ่มต้น|ใบเสร็จ|ใบตอบรับ|เจ้าของงาน|ข้อเสนอ|ครบกำหนด|คู่สัญญา|ระยะเวลา|ส่วนบุคคล|หน้างาน|แม่แบบ|ต่ออายุ|หน้าจอ|มือถือ|ตีกลับ|คำตอบ|รวมสัญญา|แยกสัญญา|ร่างสัญญา|ตามเดิม|อย่างเดียว|ด่านแรก|ครั้งเดียว|ที่เหลือ|ทำต่อ|งานนี้/g;
 function keepWords(root) {
   const w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT), hits = [];
   for (let n = w.nextNode(); n; n = w.nextNode()) {
@@ -311,7 +316,7 @@ const TASKS = [
     stop: { date: '29 ก.ย. 2569', note: 'ผู้ให้เช่าแจ้งว่าขายที่ดินให้เจ้าของใหม่แล้ว' } },
   { id: 't19', site: 'SMP0119', ll: 'ผู้ให้เช่าตัวอย่าง ป', type: 'บุคคลทั่วไป', end: day(2570, 1, 31), rent: 82000, at: 'review', sent: day(2569, 7, 20), answer: 'ต่อสัญญา', docs: 6,
     asks: [{ date: '28 ก.ย. 2569', note: 'ผู้ให้เช่าขอเปลี่ยนการชำระจากรายปีเป็นรายเดือน' }] },
-  { id: 't20', site: 'SMP0120', ll: 'ผู้ให้เช่าตัวอย่าง ผ', type: 'บุคคลทั่วไป', end: day(2570, 4, 30), rent: 54000, at: 'docs', sent: day(2569, 9, 1), answer: 'ต่อสัญญา', docs: 3, merge: true },
+  { id: 't20', site: 'SMP0120', ll: 'ผู้ให้เช่าตัวอย่าง ผ', type: 'บุคคลทั่วไป', end: day(2570, 4, 30), rent: 54000, at: 'pre', sent: day(2569, 9, 1), answer: 'ต่อสัญญา', docs: 3, merge: true },
 ];
 // dr เก็บค่าที่พิมพ์หรือเลือกไว้แต่ยังไม่กดบันทึก ออกจากงานกลางทางแล้วกลับมา ค่ายังอยู่
 // งานกรณีพิเศษตั้งบันทึกการเจรจา ไม้ การติดตาม และสิ่งที่ผู้ให้เช่าขอไว้ล่วงหน้าได้ งานอื่นเริ่มว่าง
@@ -323,8 +328,11 @@ const MINE = ['letter', 'response', 'nego', 'docs', 'pre', 'contract', 'sign'];
 // viewing = ขั้นปัจจุบันไม่มีอะไรให้คนหน้างานทำ ใช้กรอบเทา (งานไม่ต่อที่ส่งไม้ 2 แล้วยังบันทึกการเจรจาเพิ่มได้ จึงไม่นับ)
 // ส่งลิงก์แล้วแต่งานสายเช็คยังไม่แนบใบเสร็จ ยังมีของให้ทำ จึงไม่นับ (ผู้หักล้าง รุ่น 4 visual-05)
 // คู่สัญญาเปลี่ยนแล้วหยุดการเซ็น = งานอยู่ที่ CDC ตัดสิน คนหน้างานไม่ต้องทำอะไร (รุ่น 7)
-const viewing = t => (t.at === 'sign' && !!t.stop) || (t.at === 'pre' && t.cpa === 'sent') || (t.at === 'sign' && t.mode === '1' && t.link === 'sent' && (!t.cheque || !!t.att.receipt));
-const handed = t => viewing(t) || (t.at === 'response' && t.answer === 'ไม่ต่อ' && t.rung > 1);
+// งานรวมหรือแยกสัญญา (ไม่ใช่ 1 งาน 1 ร่าง) ทำใน SAR ตามเดิม (ร่าง 2-19) ในเครื่องมือดูได้อย่างเดียว
+// แต่ยังเป็นงานที่คนหน้างานต้องทำเองใน SAR จึงไม่นับเป็นงานที่ส่งต่อ (รุ่น 8 ตาใหม่เทียบกับร่างแล้วเจอว่ารุ่น 7 ยังเดินต่อในเครื่องมือได้)
+const inSar = t => !!t.merge;
+const viewing = t => inSar(t) || (t.at === 'sign' && !!t.stop) || (t.at === 'pre' && t.cpa === 'sent') || (t.at === 'sign' && t.mode === '1' && t.link === 'sent' && (!t.cheque || !!t.att.receipt));
+const handed = t => (viewing(t) && !inSar(t)) || (t.at === 'response' && t.answer === 'ไม่ต่อ' && t.rung > 1);
 const GROUPS = {
   todo: t => MINE.includes(t.at) && !handed(t),
   back: t => !!t.back,
@@ -357,6 +365,7 @@ function stateTag(t) {
   const tag = (cls, s) => `<span class="tag${cls ? ' ' + cls : ''}">${s}</span>`;
   if (t.at === 'done') return tag('ok', 'เสร็จ');
   if (t.back) return tag('bad', 'ถูกตีกลับ');
+  if (inSar(t)) return tag('', 'ต้องทำใน SAR');
   if (t.at === 'response' && t.answer === 'ไม่ต่อ') return t.rung > 1 ? tag('quiet', 'รอ CDC ช่วยคุย') : tag('bad', 'ผู้ให้เช่าไม่ต่อ');
   if (t.at === 'response' && !t.answer && lateDays(t) > 0) return tag('warn', 'เลยกำหนดตอบ');
   if (t.at === 'sign' && t.stop) return tag('quiet', 'รอ CDC ตัดสิน');
@@ -367,7 +376,8 @@ function stateTag(t) {
   if (t.at === 'contract' || t.at === 'sign') return tag('warn', 'พร้อมเซ็น');
   return tag('', TODO[t.at]);
 }
-// ป้ายกรณีพิเศษบนงาน (ร-10 กับช่องกรณีพิเศษ 2-15) คิดจากข้อมูลของงานทุกครั้ง ขึ้นทั้งในรายการและบนหัวงาน
+// ป้ายกรณีพิเศษบนงาน (ร-10) คิดจากข้อมูลของงานทุกครั้ง ขึ้นทั้งในรายการและบนหัวงาน
+// ช่องกรณีพิเศษ 2-15 มี 4 เรื่อง ตัวอย่างมีแค่ สัญญาออกโดย กับ รับเช็คงวดแรก ในขั้น 05 สัญญาไม่มาตรฐานกับงานรวมสัญญาตั้งไว้ในข้อมูลของงาน
 function cases(t) {
   const c = [];
   if (t.at === 'response' && t.answer === 'ไม่ต่อ') c.push('ไม่ต่อ ไม้ ' + t.rung);
@@ -379,7 +389,7 @@ function cases(t) {
   if (t.own || t.signers > 1) c.push('เซ็นนอกเครื่องมือ');
   if (t.stop) c.push('คู่สัญญาเปลี่ยน');
   if (t.asks.length) c.push('ขอแก้เงื่อนไขตอนเซ็น');
-  if (t.merge) c.push('รวมสัญญา ทำใน SAR');
+  if (t.merge) c.push('รวมสัญญา');
   return c;
 }
 const caseTags = t => cases(t).map(x => `<span class="case">${x}</span>`).join('');
@@ -447,6 +457,13 @@ const extra = (t, key, label, done) => `<button class="ghost${t.att[key] ? ' is-
 // ขั้นที่รอคนอื่น (ขั้นตรวจ ส่งต่อ CPA แล้ว ส่งลิงก์แล้ว) ใช้กรอบเทากับบรรทัดนำเดียวกัน
 const WAITLEAD = s => `<p class="lead">ตอนนี้ไม่ต้องทำอะไรในเครื่องมือ ${s}</p>`;
 const DEMO = (attr, label) => `<p class="demo">ใช้เฉพาะการสาธิต<button class="link" ${attr}>${label}</button></p>`;
+// งานรวมหรือแยกสัญญา ขั้นปัจจุบันไม่มีปุ่มไปต่อในเครื่องมือ บอกว่าทำต่อใน SAR (ร่าง 2-19 , หัวข้อ 4.4 วิธีจัดการทั้งก้อนเป็นข้อเสนอของผู้ร่าง)
+const SAR_ONLY = `${WAITLEAD('งานนี้รวมสัญญา ทำต่อใน SAR ตามเดิม')}
+    <p class="note" id="merge">งานนี้ไม่ใช่ 1 งาน 1 ร่าง การรวมหรือแยกสัญญากับขั้นที่เหลือทำใน SAR ตามเดิม เครื่องมือแค่ติดป้ายไว้ให้รู้</p>`;
+// ขั้นที่เหลือของงานรวมสัญญาไม่ได้เดินในเครื่องมือ ขึ้นแถวเดียวแทนขั้นถัดไปที่เป็นเส้นประ
+// (ตาใหม่รุ่น 8 ชี้ว่าเส้นประชวนให้เข้าใจว่ายังทำต่อในเครื่องมือ ทั้งที่ข้อความบอกว่าขั้นที่เหลือทำใน SAR)
+const REST = `<p class="group">ขั้นที่เหลือ</p>
+    <ol class="steps"><li class="step is-sum is-out" id="rest"><div class="step-head"><span class="step-name">ด่านตรวจ กับขั้น 06 ถึง 07</span><span class="step-note">ทำใน SAR ตามเดิม</span></div></li></ol>`;
 // ผู้ให้เช่าออกสัญญาเอง หรือผู้ลงนามมากกว่า 1 คน เฟสแรกเซ็นกระดาษนอกเครื่องมือแล้วถ่ายแนบ (ร่าง 4.4 , 3-08)
 const paperOnly = t => !!t.own || t.signers > 1;
 function gateBody(t, key) {
@@ -458,7 +475,8 @@ function gateBody(t, key) {
     <p class="hint">ขั้นช่วงนี้ทำใน SAR กับ SMT เหมือนเดิม เครื่องมือแสดงสถานะให้ดูอย่างเดียว</p>
     <p class="demo">ใช้เฉพาะการสาธิต<button class="link" data-go="${key}">${key === 'review' ? 'จำลองว่าอนุมัติแล้ว' : 'จำลองว่าตรวจผ่าน'}</button></p>`;
 }
-// ทางออกเมื่อเซ็นต่อไม่ได้ มีในขั้นเซ็นของทุกงาน (ร่าง 4.4 , 3-15 ยกเลิกรอบเซ็น , 3-05 หยุดแล้วแจ้ง)
+// ทางออกเมื่อเซ็นต่อไม่ได้ มีในขั้นเซ็นที่คนหน้างานยังทำอยู่ ไม่ขึ้นระหว่างรอผู้ให้เช่าเซ็นทางลิงก์ และหลังหยุดการเซ็นแล้ว
+// (ร่าง 4.4 , 3-15 ยกเลิกรอบเซ็น , 3-05 เฉพาะส่วนหยุดแล้วแจ้ง ตัวอย่างยังไม่มีช่องระบุผู้ลงนามแล้วเทียบกับคู่สัญญาเดิม)
 // พิมพ์รายละเอียดก่อน ปุ่มยืนยันจึงเปิด ฟอร์มเปิดปิดในที่เดิม ลายมือชื่อที่กำลังเซ็นจึงไม่หาย
 function signExc(t) {
   const form = (key, lab, hold, go) => `
@@ -654,7 +672,7 @@ const F = {
   },
 
   sign: t => {
-    // คู่สัญญาเปลี่ยน (ขายที่ดิน ผู้ให้เช่าเสียชีวิต) หยุดการเซ็นแล้วรอ CDC ตัดสิน เครื่องมือไม่เปลี่ยนคู่สัญญาเอง (ร่าง 4.4 กับ 3-05)
+    // คู่สัญญาเปลี่ยน (ขายที่ดิน ผู้ให้เช่าเสียชีวิต) หยุดการเซ็นแล้วรอ CDC ตัดสิน เครื่องมือไม่เปลี่ยนคู่สัญญาเอง (ร่าง 4.4 กับส่วนหยุดแล้วแจ้งของ 3-05)
     if (t.stop) return `
     ${WAITLEAD('หยุดการเซ็นแล้ว รอ CDC ตัดสินเรื่องคู่สัญญา')}
     <p class="note" id="stop">คู่สัญญาเปลี่ยน แจ้งเมื่อ ${t.stop.date}: ${esc(t.stop.note)}</p>
@@ -691,7 +709,7 @@ const F = {
     ${MISS}
     <button class="btn" data-go="sign" id="send-sign"${wait ? ' hidden' : ''} disabled>ส่งเข้าตรวจ</button>
     ${sent ? DEMO('data-act="link-signed"', 'จำลองว่าผู้ให้เช่าเซ็นแล้ว') : ''}
-    ${wait ? '' : signExc(t)}`;
+    ${wait || sent ? '' : signExc(t)}`;
   },
 
   check: t => gateBody(t, 'check'),
@@ -714,7 +732,7 @@ function paperOf(t) {
 
 const SRC = {
   letter: 'ขั้น Waiting for Letter Issued กับปุ่ม Export Letter ของ SAR และตัวอย่างหนังสือในสไลด์ การดูตัวอย่างหนังสือก่อนออกเป็นข้อเสนอใหม่',
-  response: 'ขั้น Waiting for LL Responsed ของ SAR คำตอบต่อหรือไม่ต่อ กับลำดับไม้ 1 ถึง 3 ตามคำเล่าของเจ้าของงาน (ไม้ 2 และ 3 เจ้าของงานเล่าว่าส่งเมลให้ CDC หรือผู้บริหาร) ป้ายครบกำหนดตอบ การถ่ายภาพใบตอบรับ และการส่งสรุปเรื่องต่อในเครื่องมือเป็นข้อเสนอใหม่',
+  response: 'ขั้น Waiting for LL Responsed ของ SAR คำตอบต่อหรือไม่ต่อ กับลำดับไม้ 1 ถึง 3 ตามคำเล่าของเจ้าของงาน (ไม้ 2 และ 3 เจ้าของงานเล่าว่าส่งเมลให้ CDC หรือผู้บริหาร ตัวอย่างส่งไม้ 2 ถึง CDC เป็นค่าเริ่มต้นของผู้ร่าง ใครจดรอบของไม้ 2 ไม้ 3 ยังรอคำตอบ) ป้ายครบกำหนดตอบ การถ่ายภาพใบตอบรับ และการส่งสรุปเรื่องต่อในเครื่องมือเป็นข้อเสนอใหม่',
   nego: 'ขั้น Waiting for Negotiating ของ SAR ซึ่งเจ้าของงานเล่าว่าตอบต่อแล้วมาขั้นนี้ และมีคนอยากให้ขั้นนี้เป็น ESIGN ซึ่งตัวอย่างยังไม่ได้ทำ การเก็บเงื่อนไขเป็นช่องเป็นข้อเสนอใหม่',
   docs: 'รายการเอกสารต่อประเภทผู้ให้เช่าในสไลด์ การตั้งเป็นขั้นแยกกับการถ่ายรูปแนบเป็นข้อเสนอใหม่ ยังไม่รู้ว่าวันนี้เก็บเอกสารที่ขั้นไหน การเก็บภาพเอกสารส่วนบุคคลรอฝ่ายกฎหมายกับ Security',
   pre: 'ขั้น Waiting for Pre-Contract Submitted กับฟอร์มร่างสัญญาของ SAR ตัวอย่างแสดง 11 ช่อง ฟอร์มจริงมีช่องบังคับอย่างน้อย 14 ช่อง จำนวนที่เติมให้ได้จริงยังไม่รู้ ชื่อช่องยังไม่ยืนยัน การตรวจก่อนส่งด้วยเครื่องเป็นข้อเสนอใหม่',
@@ -738,10 +756,13 @@ function caseSrc(t) {
   if (t.at === 'pre' && t.backFrom) s.push('ทางตีกลับจากหัวหน้า SMT ที่แก้ใน SMT ไม่ได้มาจากคำเล่าของเจ้าของงาน งานกลับมาหาคนที่คีย์เหมือนงานที่ CDC ตีกลับ การติดป้ายว่ามาจากฝั่ง SMT เป็นข้อเสนอของผู้ร่าง');
   if (t.at === 'contract' && t.nonstd) s.push('คำว่า Non-STD Contract ในหมายเหตุของภาพ SAR อ่านได้มั่นใจต่ำ การแนบไฟล์สัญญาที่ผ่านการตรวจแล้วแทนการออกจากแม่แบบเป็นข้อเสนอของผู้ร่าง');
   if (t.at === 'sign' && t.stop) s.push('สไลด์บอกว่ากรรมสิทธิ์เปลี่ยนระหว่างสัญญาให้ใช้เอกสารของเจ้าของที่ดินคนใหม่ ผู้ตัดสินเป็นใครยังไม่รู้ การหยุดเซ็นแล้วแจ้ง CDC ตัดสินเป็นข้อเสนอของผู้ร่าง');
-  if (t.at === 'sign' && t.signers > 1) s.push('ต้นทางไม่ได้บอกว่าสัญญาหนึ่งฉบับมีผู้ให้เช่าหลายคนได้หรือไม่ การเซ็นกระดาษให้ครบทุกคนแล้วถ่ายแนบในเฟสแรกเป็นข้อเสนอของผู้ร่าง');
-  if (t.at === 'sign' && !viewing(t)) s.push('ทางเซ็นต่อไม่ได้ (ผู้ให้เช่าขอแก้เงื่อนไข และคู่สัญญาเปลี่ยน) เป็นข้อเสนอของผู้ร่าง');
-  if (t.at === 'review' && t.asks.length) s.push('การบันทึกสิ่งที่ผู้ให้เช่าขอ ยกเลิกรอบเซ็น แล้วส่งกลับทางอนุมัติเป็นข้อเสนอของผู้ร่าง');
-  if (t.merge) s.push('ภาพ SAR เห็นปุ่มรวมสัญญากับแยกสัญญา ยังไม่รู้ว่าทำงานอย่างไร เฟสแรกทำใน SAR ตามเดิม การติดป้ายเป็นข้อเสนอของผู้ร่าง');
+  if (t.at === 'sign' && t.signers > 1) s.push('ต้นทางไม่ได้บอกว่าสัญญาหนึ่งฉบับมีผู้ให้เช่าหลายคนได้หรือไม่ การเซ็นกระดาษให้ครบทุกคนแล้วถ่ายแนบในเฟสแรก กับการติ๊กตรวจบัตรครั้งเดียวครบทุกคน เป็นข้อเสนอของผู้ร่าง');
+  // ไม่ขึ้นระหว่างรอผู้ให้เช่าเซ็นทางลิงก์ รวมงานสายเช็คที่ยังไม่แนบใบเสร็จ (ตาใหม่รุ่น 8 เจอก้อนนี้ขึ้นใน SMP0108 หลังส่งลิงก์)
+  if (t.at === 'sign' && !viewing(t) && !(t.mode === '1' && t.link === 'sent')) s.push('ทางเซ็นต่อไม่ได้ (ผู้ให้เช่าขอแก้เงื่อนไข และคู่สัญญาเปลี่ยน) เป็นข้อเสนอของผู้ร่าง');
+  if (t.at === 'review' && t.asks.length) s.push('การบันทึกสิ่งที่ผู้ให้เช่าขอ ยกเลิกรอบเซ็น แล้วส่งกลับทางอนุมัติตั้งแต่ด่านแรกเป็นข้อเสนอของผู้ร่าง');
+  // ร่างหัวข้อ 4.4 บอกว่าวิธีจัดการทั้งก้อน (ทำใน SAR ตามเดิม กับติดป้าย) เป็นข้อเสนอ รุ่น 7 เขียนการทำใน SAR เป็นข้อเท็จจริง (ตาใหม่เจอ 01/10)
+  // งานออกจากเครื่องมือที่ขั้นร่างสัญญา เพราะปุ่มรวมกับแยกสัญญาในภาพ SAR อยู่ในฟอร์มร่างสัญญา (ตาใหม่รุ่น 8 ชี้ว่าเดิมหยุดที่ขั้น 04 โดยไม่มีที่มา)
+  if (t.merge) s.push('ภาพ SAR เห็นปุ่มรวมสัญญากับแยกสัญญาอยู่ในฟอร์มร่างสัญญา ยังไม่รู้ว่าทำงานอย่างไร ขั้นที่งานออกจากเครื่องมือ (ร่างสัญญา) , การทำใน SAR ตามเดิมกับการติดป้ายเป็นข้อเสนอของผู้ร่าง');
   return s;
 }
 
@@ -755,7 +776,7 @@ function viewTask(id) {
     const i = idx(k), s = STEP[k], gate = !s.no, no = gate ? (i < now ? 'ผ่าน' : i === now ? 'รอ' : 'ตรวจ') : s.no;
     if (i < now) return `<li class="step is-done"><div class="step-head"><span class="no">${no}</span><span class="step-name">${s.name}</span><span class="step-note">${summary(t, k)}</span></div></li>`;
     if (i > now) return `<li class="step is-next"><div class="step-head"><span class="no">${no}</span><span class="step-name">${s.name}</span></div></li>`;
-    return `<li class="step is-now${gate || viewing(t) ? ' is-view' : ''}" id="now"><div class="step-head"><span class="no">${no}</span><h2 class="step-name">${s.name}</h2></div><div class="body">${F[k](t)}</div></li>`;
+    return `<li class="step is-now${gate || viewing(t) ? ' is-view' : ''}" id="now"><div class="step-head"><span class="no">${no}</span><h2 class="step-name">${s.name}</h2></div><div class="body">${inSar(t) ? SAR_ONLY : F[k](t)}</div></li>`;
   };
   app.innerHTML = `
     <h1>${t.site}</h1>
@@ -769,18 +790,17 @@ function viewTask(id) {
       </dl>
       ${cases(t).length ? `<div class="old-case"><p class="lab">กรณีพิเศษ</p><p class="cases" id="cases">${caseTags(t)}</p></div>` : ''}
     </section>
-    ${t.merge ? '<p class="note" id="merge">งานนี้รวมสัญญาใน SAR (ไม่ใช่ 1 งาน 1 ร่าง) เฟสแรกการรวมหรือแยกสัญญาทำใน SAR ตามเดิม เครื่องมือติดป้ายไว้ให้รู้ งานแบบนี้ทำส่วนไหนในเครื่องมือได้บ้างยังต้องคุยกัน</p>' : ''}
     <p class="group">กล่อง 2 เตรียมสัญญา ขั้น 01 ถึง 05</p>
     <ol class="steps">${now > idx('review')
       ? '<li class="step is-done is-sum"><div class="step-head"><span class="step-name">ขั้น 01 ถึง 05</span><span class="step-note">เสร็จครบ</span></div></li>'
       : ['letter', 'response', 'nego', 'docs', 'pre'].map(card).join('')}</ol>
-    <p class="group">ด่านตรวจเดิมใน SAR กับ SMT ไม่อยู่ในกล่อง</p>
+    ${inSar(t) ? REST : `<p class="group">ด่านตรวจเดิมใน SAR กับ SMT ไม่อยู่ในกล่อง</p>
     <ol class="steps">${card('review')}</ol>
     <p class="group">กล่อง 3 เซ็นสัญญา ขั้น 06 ถึง 07</p>
     <ol class="steps">${['contract', 'sign'].map(card).join('')}</ol>
     <p class="group">ด่านตรวจเดิมใน SAR กับ SMT ไม่อยู่ในกล่อง</p>
-    <ol class="steps">${card('check')}</ol>
-    ${srcLine((t.own && SRC_OWN[t.at]) || SRC[t.at])}${caseSrc(t).map(srcLine).join('')}`;
+    <ol class="steps">${card('check')}</ol>`}
+    ${inSar(t) ? '' : srcLine((t.own && SRC_OWN[t.at]) || SRC[t.at])}${caseSrc(t).map(srcLine).join('')}`;
   keepWords(app);
   if (t.at === 'sign') initSign(t); else gate();
 }
