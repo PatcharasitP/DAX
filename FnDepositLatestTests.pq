@@ -1,5 +1,5 @@
 // ============================================================================
-//  FnDepositLatestTests — ชุดทดสอบ fnDepositLatest v1 (2026-10-07)
+//  FnDepositLatestTests — ชุดทดสอบ fnDepositLatest v2 (2026-10-07)
 //  ข้อมูลสมมติจำลองทุกเคสที่เจอในข้อมูลจริง (ลูกโซ่หลายทอด, ตัวก่อนหน้า TRANSFERRED, แม่ RETURNED มีลูก,
 //  มัดจำ 2 ก้อนปลายทางเดียว, สถานะขัดกัน, ตัวล่าสุดยกเลิก, แถวซ้ำจาก join, ไม่เคยย้าย, PLACED)
 //  expected สร้างด้วยตัวแยกวิเคราะห์อิสระ (Python) ไม่ได้คิดในหัว
@@ -33,37 +33,54 @@ let
     G    = fx(Raw),
     GAll = fx(Raw, [KeepStatus = null]),
     Flat = fx(Raw, [Group = false]),
-    one  = (t as table, d as text) as record =>
-        let s = Table.SelectRows(t, each [Destination Contract Code] = d) in
-        if Table.RowCount(s) = 1 then s{0} else error "พบ " & Text.From(Table.RowCount(s)) & " แถวสำหรับ " & d,
-    show = (t as table, d as text) as text =>
-        let r = try one(t, d) in
+    one  = (t as table, k as text) as record =>
+        let s = Table.SelectRows(t, each [Match Contract Code] = k) in
+        if Table.RowCount(s) = 1 then s{0} else error "พบ " & Text.From(Table.RowCount(s)) & " แถวสำหรับ " & k,
+    show = (t as table, k as text) as text =>
+        let r = try one(t, k) in
         if r[HasError] then "ERROR: " & r[Error][Message]
         else let x = r[Value] in
             "n=" & Text.From(x[Deposit Count]) & " | conflict=" & Text.From(x[Status Conflict]) & " | " & x[DEPOSIT_STATUS]
+            & " | dest=" & x[Destination Contract Code]
             & " | amt=" & Number.ToText(x[DEPOSIT_AMOUNT], "0.00", "en-US") & " | pay=" & (x[Payment_Method] ?? "<null>")
             & " | ids=" & x[DEPOSIT_ID],
+    flatOf = (id as number) as text =>
+        let s = Table.SelectRows(Flat, each [DEPOSIT_ID] = id) in
+        if Table.RowCount(s) = 0 then "rows=0" else s{0}[Destination Contract Code] & " | " & s{0}[Contracts In Chain],
     e = (f as function) as text => let r = try f() in if r[HasError] then "ERROR" else "no error",
     kind = (t as table, c as text) as text => Table.SelectRows(Table.Schema(t), each [Name] = c){0}[Kind],
 
     cases = {
-        {"ปลายทาง AAA-2023", show(G, "AAA-2023"), "n=1 | conflict=false | CARRIED-OVER | amt=18000.00 | pay=Cash | ids=102"},
-        {"ปลายทาง BBB-2018-C004", show(G, "BBB-2018-C004"), "n=1 | conflict=false | PENDING CARRIED-OVER | amt=1000.00 | pay=Cash | ids=204"},
-        {"ปลายทาง CCC-2021", show(G, "CCC-2021"), "n=1 | conflict=false | PENDING CARRIED-OVER | amt=25000.00 | pay=Cash | ids=302"},
-        {"ปลายทาง DDD-2026", show(G, "DDD-2026"), "n=2 | conflict=false | CARRIED-OVER | amt=1500.00 | pay=BG, Cash | ids=401, 402"},
-        {"ปลายทาง EEE-2026", show(G, "EEE-2026"), "n=2 | conflict=true | PENDING RETURNED, RETURNED | amt=1000.00 | pay=Cash | ids=501, 502"},
-        {"ปลายทาง GGG-2026", show(G, "GGG-2026"), "n=1 | conflict=false | RETURNED | amt=300.00 | pay=BG, Cash | ids=701"},
-        {"ปลายทาง HHH-2015", show(G, "HHH-2015"), "n=1 | conflict=false | PENDING RETURNED | amt=4500.00 | pay=Cash | ids=801"},
-        {"ประชากร จำนวนปลายทาง (KeepStatus ค่าเริ่มต้น)", Text.From(Table.RowCount(G)), "7"},
-        {"ตัวล่าสุดยกเลิก ไม่โผล่ (FFF-2026)", Text.From(Table.RowCount(Table.SelectRows(G, each [Destination Contract Code] = "FFF-2026"))), "0"},
-        {"ตัวก่อนหน้าไม่ถูกนับ (FFF ต้นทางไม่โผล่)", Text.From(Table.RowCount(Table.SelectRows(G, each [Destination Contract Code] = "FFF-2016"))), "0"},
-        {"KeepStatus = null จำนวนปลายทาง", Text.From(Table.RowCount(GAll)), "9"},
-        {"KeepStatus = null ตัวยกเลิกได้ปลายทางจากตัวก่อนหน้า", show(GAll, "FFF-2026"), "n=1 | conflict=false | CANCELLED | amt=900.00 | pay=Cash | ids=602"},
+        {"สัญญา AAA-2012", show(G, "AAA-2012"), "n=1 | conflict=false | CARRIED-OVER | dest=AAA-2023 | amt=18000.00 | pay=Cash | ids=102"},
+        {"สัญญา AAA-2023", show(G, "AAA-2023"), "n=1 | conflict=false | CARRIED-OVER | dest=AAA-2023 | amt=18000.00 | pay=Cash | ids=102"},
+        {"สัญญา BBB-2008", show(G, "BBB-2008"), "n=1 | conflict=false | PENDING CARRIED-OVER | dest=BBB-2018-C004 | amt=1000.00 | pay=Cash | ids=204"},
+        {"สัญญา BBB-2018-C002", show(G, "BBB-2018-C002"), "n=1 | conflict=false | PENDING CARRIED-OVER | dest=BBB-2018-C004 | amt=1000.00 | pay=Cash | ids=204"},
+        {"สัญญา BBB-2018-C003", show(G, "BBB-2018-C003"), "n=1 | conflict=false | PENDING CARRIED-OVER | dest=BBB-2018-C004 | amt=1000.00 | pay=Cash | ids=204"},
+        {"สัญญา BBB-2018-C004", show(G, "BBB-2018-C004"), "n=1 | conflict=false | PENDING CARRIED-OVER | dest=BBB-2018-C004 | amt=1000.00 | pay=Cash | ids=204"},
+        {"สัญญา CCC-2018", show(G, "CCC-2018"), "n=1 | conflict=false | PENDING CARRIED-OVER | dest=CCC-2021 | amt=25000.00 | pay=Cash | ids=302"},
+        {"สัญญา CCC-2021", show(G, "CCC-2021"), "n=1 | conflict=false | PENDING CARRIED-OVER | dest=CCC-2021 | amt=25000.00 | pay=Cash | ids=302"},
+        {"สัญญา DDD-2015", show(G, "DDD-2015"), "n=2 | conflict=false | CARRIED-OVER | dest=DDD-2026 | amt=1500.00 | pay=BG, Cash | ids=401, 402"},
+        {"สัญญา DDD-2026", show(G, "DDD-2026"), "n=2 | conflict=false | CARRIED-OVER | dest=DDD-2026 | amt=1500.00 | pay=BG, Cash | ids=401, 402"},
+        {"สัญญา EEE-2019", show(G, "EEE-2019"), "n=1 | conflict=false | RETURNED | dest=EEE-2026 | amt=700.00 | pay=Cash | ids=501"},
+        {"สัญญา EEE-2020", show(G, "EEE-2020"), "n=1 | conflict=false | PENDING RETURNED | dest=EEE-2026 | amt=300.00 | pay=Cash | ids=502"},
+        {"สัญญา EEE-2026", show(G, "EEE-2026"), "n=2 | conflict=true | PENDING RETURNED, RETURNED | dest=EEE-2026 | amt=1000.00 | pay=Cash | ids=501, 502"},
+        {"สัญญา GGG-2017", show(G, "GGG-2017"), "n=1 | conflict=false | RETURNED | dest=GGG-2026 | amt=300.00 | pay=BG, Cash | ids=701"},
+        {"สัญญา GGG-2026", show(G, "GGG-2026"), "n=1 | conflict=false | RETURNED | dest=GGG-2026 | amt=300.00 | pay=BG, Cash | ids=701"},
+        {"สัญญา HHH-2015", show(G, "HHH-2015"), "n=1 | conflict=false | PENDING RETURNED | dest=HHH-2015 | amt=4500.00 | pay=Cash | ids=801"},
+        {"ประชากร จำนวนสัญญาที่เชื่อมได้ (KeepStatus ค่าเริ่มต้น)", Text.From(Table.RowCount(G)), "16"},
+        {"ตัวล่าสุดยกเลิก สัญญาในลูกโซ่ไม่โผล่ (FFF)", Text.From(Table.RowCount(Table.SelectRows(G, each Text.StartsWith([Match Contract Code], "FFF")))), "0"},
+        {"ตัวล่าสุด PLACED ไม่โผล่ (JJJ)", Text.From(Table.RowCount(Table.SelectRows(G, each Text.StartsWith([Match Contract Code], "JJJ")))), "0"},
+        {"KeepStatus = null จำนวนสัญญา", Text.From(Table.RowCount(GAll)), "19"},
+        {"KeepStatus = null สัญญาต้นทาง FFF-2016 ได้ตัวยกเลิก", show(GAll, "FFF-2016"), "n=1 | conflict=false | CANCELLED | dest=FFF-2026 | amt=900.00 | pay=Cash | ids=602"},
         {"Group = false คืนทีละแถวตัวล่าสุด", Text.From(Table.RowCount(Flat)), "10"},
-        {"Group = false มีคอลัมน์ปลายทาง", Text.Combine(List.Sort(List.Distinct(Flat[Destination Contract Code])), ","), "AAA-2023,BBB-2018-C004,CCC-2021,DDD-2026,EEE-2026,GGG-2026,HHH-2015"},
+        {"Group = false ลูกโซ่ของ 102", flatOf(102), "AAA-2023 | AAA-2012, AAA-2023"},
+        {"Group = false ลูกโซ่ของ 204", flatOf(204), "BBB-2018-C004 | BBB-2008, BBB-2018-C004, BBB-2018-C003, BBB-2018-C002"},
+        {"Group = false ลูกโซ่ของ 302", flatOf(302), "CCC-2021 | CCC-2018, CCC-2021"},
         {"ชนิด DEPOSIT_AMOUNT เป็น number", kind(G, "DEPOSIT_AMOUNT"), "number"},
         {"ชนิด Status Conflict เป็น logical", kind(G, "Status Conflict"), "logical"},
         {"ชนิด Deposit Count เป็น number", kind(G, "Deposit Count"), "number"},
+        {"ชนิด Match Contract Code เป็น text", kind(G, "Match Contract Code"), "text"},
+        {"Match Contract Code ไม่ซ้ำ (เชื่อม SAR ไม่แตกแถว)", Text.From(Table.RowCount(G) = List.Count(List.Distinct(G[Match Contract Code]))), "true"},
         {"ขาดคอลัมน์ FROM_DEPOSIT_ID ต้อง error", e(() => Table.RowCount(fx(Table.RemoveColumns(Raw, {"FROM_DEPOSIT_ID"})))), "ERROR"},
         {"ลูกโซ่วนกลับหาตัวเองไม่ค้าง อ่านค่าปลายทางจริง", Text.Combine(fx(#table({"DEPOSIT_ID","FROM_DEPOSIT_ID","DEPOSIT_STATUS","CONTRACT_CODE","NEW_CONTRACT_CODE"}, {{1, 2, "RETURNED", "X", ""}, {2, 1, "RETURNED", "X", ""}, {3, 2, "RETURNED", "X", ""}}), [KeepStatus = null, Group = false])[Destination Contract Code], ","), "X"}
     },
