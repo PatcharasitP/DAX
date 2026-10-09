@@ -19,6 +19,7 @@
 
 ## ขั้น 2 แก้ `Latest Contract` (เพิ่ม 2 คอลัมน์ใน SQL 2 จุด)
 เปิด Advanced Editor ของ `Latest Contract`
+ทางลัด: วางทับทั้งก้อนจากไฟล์ `PendingVAT_LatestContract_AdvancedEditor.pq` ในรีโป DAX ได้ (เปลี่ยน `<server>` กับ `<database>` 3 จุดเป็นค่าเดิมก่อน) ใช้ได้เมื่อบรรทัดแรกของโค้ดเดิมเป็น `ฉบับดันงานลง SQL (27/08/2026)` เท่านั้น
 
 **จุด A** ในก้อน `trimmed AS ( SELECT ...` หาบรรทัดที่ลงท้าย `[Contract Site Type], [Company],` แล้วเพิ่มบรรทัดใหม่ใต้มัน
 ```sql
