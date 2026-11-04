@@ -15,7 +15,8 @@ DEFINE
     SELECTCOLUMNS(
       FILTER('RENEW CONTRACT TASK',
         'RENEW CONTRACT TASK'[GROUP] = GroupKey_ && LEFT('RENEW CONTRACT TASK'[SUB_STAGE], LEN(StageKey_)) = StageKey_
-          && YEAR('RENEW CONTRACT TASK'[OLD_CONTRACT_END_DATE]) IN Years_),
+          && YEAR('RENEW CONTRACT TASK'[OLD_CONTRACT_END_DATE]) IN Years_
+          && 'RENEW CONTRACT TASK'[REJECT_FLAG] = "Yes"),   // พี่ปอนด์ 04/11/2026 ทั้งเมลนับเฉพาะงาน Reject เดิมช่องอายุนับงานค้างทั้งหมด รวมได้ 809 แต่ REJECT 788
       "V", 'RENEW CONTRACT TASK'[Sub_New],
       "A", 'RENEW CONTRACT TASK'[Aging Group],       // <-- AGING เปลี่ยนเป็น [AGING_GROUP]
       "J", 'RENEW CONTRACT TASK'[REJECT_FLAG] = "Yes")
@@ -115,7 +116,7 @@ DEFINE
   VAR Body_ =
     "<div style='" & F_ & "font-size:13px;color:#222;line-height:1.6'>"
       & IF(N_ = 0,
-          Head_ & "<p style='margin:14px 0;" & F_ & "font-size:13px;font-weight:bold;color:#222'>วันนี้ไม่มีงานค้างในขั้น " & StageName_ & " ทุก Vendor เคลียร์ครบแล้ว ขอบคุณค่ะ</p>",
+          Head_ & "<p style='margin:14px 0;" & F_ & "font-size:13px;font-weight:bold;color:#222'>วันนี้ไม่มีงาน Reject ในขั้น " & StageName_ & " ทุก Vendor เคลียร์ครบแล้ว ขอบคุณค่ะ</p>",
           // การ์ดตัวเลขแบบ 0 Wait (ขอแค่ยอด REJECT คำนวณจากข้อมูล) ซ้าย , หัวเมลขวา
           "<table cellpadding='0' cellspacing='0' border='0'><tr>"
             & "<td valign='top' style='padding:0'><table cellpadding='0' cellspacing='0' border='1' bordercolor='#D9D9D9' style='border-collapse:collapse;border:1px solid #D9D9D9'><tr><td align='center' bgcolor='#FAFAFA' style='background:#FAFAFA;border:1px solid #D9D9D9;padding:18px 24px'>"   // พี่ปอนด์ 04/11/2026 ขอบขวาหายใน Outlook ใส่เส้นที่ช่องแบบตารางสรุป
@@ -123,8 +124,8 @@ DEFINE
             & "<div style='" & F_ & "font-size:13px;color:#666;margin-top:4px;white-space:nowrap'>TOTAL Reject</div></td></tr></table></td>"
             & "<td width='22' style='padding:0'>&nbsp;</td>"
             & "<td valign='top' style='padding:0'>" & Head_ & "</td></tr></table>"
-            & H_ & "งานค้างแต่ละ Vendor แยกตามอายุงาน</p>" & Chart_ & "</div>"
-            & H_ & "จำนวนงานค้างและงานที่ถูก Reject ของแต่ละ Vendor</p>" & Summary_ & "</div>"
+            & H_ & "งาน Reject แต่ละ Vendor แยกตามอายุงาน</p>" & Chart_ & "</div>"
+            & H_ & "จำนวนงานที่ถูก Reject ของแต่ละ Vendor แยกตามอายุงาน</p>" & Summary_ & "</div>"
             & "<p style='margin:0'>&nbsp;</p>")
       & P_ & "ดูรายงานเต็ม: <a href='" & Link_ & "' style='color:#1A73E8;font-weight:bold'>Renewal Dashboard &amp; SAR Report</a></p>"
       & "<p style='margin:14px 0 0;" & F_ & "font-size:12px;color:#888'><b>หมายเหตุ:</b> ไฟล์แนบมีเฉพาะงานที่ถูก Reject " & FORMAT(J_, "#,0") & " งาน (REJECT_FLAG = Yes) อีเมลนี้ถูกส่งโดยระบบอัตโนมัติ กรุณาอย่าตอบกลับ</p>"   // พี่ปอนด์ 04/11/2026 ไฟล์แนบเฉพาะ flag Yes
@@ -144,7 +145,7 @@ EVALUATE
     "bodyHtml", Body_,
     "rowsJson", Detail_,
     // พี่ปอนด์ 04/11/2026 หัวเรื่องบอกยอด Reject ตัวเดียวกับการ์ด (เดิมบอกงานค้างทั้งหมด 875 ดูขัดกับการ์ด 834)
-    "subject", "[Urgent] Renewal Reject Flag " & StageName_ & " " & FORMAT(Upd_, "dd/mm/yyyy") & IF(N_ = 0, " (ไม่มีงานค้าง)", " Reject " & FORMAT(J_, "#,0") & " งาน"),
+    "subject", "[Urgent] Renewal Reject Flag " & StageName_ & " " & FORMAT(Upd_, "dd/mm/yyyy") & IF(N_ = 0, " (ไม่มีงาน Reject)", " Reject " & FORMAT(J_, "#,0") & " งาน"),
     "summaryHtml", Summary_,
     "chartHtml", Chart_,
     "totalN", N_ + 0,
