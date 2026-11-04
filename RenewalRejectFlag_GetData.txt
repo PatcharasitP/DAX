@@ -9,7 +9,7 @@ DEFINE
   VAR Years_ = {2025, 2026, 2027}                   // <-- ปีที่สัญญาเดิมหมด (OLD_CONTRACT_END_DATE) ที่นับ พี่ปอนด์ 04/11/2026 เอาแค่ 2025 ถึง 2027
   VAR YearsText_ = "2025 ถึง 2027"                  // <-- ข้อความช่วงปีในหัวเมล แก้คู่กับ Years_
   VAR Hide_ = {" No Assign", ""}                    // <-- Sub_New ที่ไม่นับเป็น Vendor
-  VAR Bars_ = 260                                   // ความยาวแท่งยาวสุด (px)
+  VAR Bars_ = 170                                   // ความยาวแท่งยาวสุด (px) กราฟสามปีวางแถวเดียวกัน เดิม 260 ตอนมีกราฟเดียว
   VAR Vendors_ = FILTER(DISTINCT('RENEW CONTRACT TASK'[Sub_New]), NOT ('RENEW CONTRACT TASK'[Sub_New] IN Hide_))
   VAR Base_ =
     SELECTCOLUMNS(
@@ -19,7 +19,8 @@ DEFINE
           && 'RENEW CONTRACT TASK'[REJECT_FLAG] = "Yes"),   // พี่ปอนด์ 04/11/2026 ทั้งเมลนับเฉพาะงาน Reject เดิมช่องอายุนับงานค้างทั้งหมด รวมได้ 809 แต่ REJECT 788
       "V", 'RENEW CONTRACT TASK'[Sub_New],
       "A", 'RENEW CONTRACT TASK'[Aging Group],       // <-- AGING เปลี่ยนเป็น [AGING_GROUP]
-      "J", 'RENEW CONTRACT TASK'[REJECT_FLAG] = "Yes")
+      "J", 'RENEW CONTRACT TASK'[REJECT_FLAG] = "Yes",
+      "Y", YEAR('RENEW CONTRACT TASK'[OLD_CONTRACT_END_DATE]))
   VAR Upd_ = MAX('RENEW CONTRACT TASK'[UPDATED_DATE])
   VAR Rows_ =
     ADDCOLUMNS(
@@ -32,13 +33,27 @@ DEFINE
       "@a4", COUNTROWS(FILTER(Base_, [V] = 'RENEW CONTRACT TASK'[Sub_New] && [A] = ">30 Day")) + 0,
       "@n", COUNTROWS(FILTER(Base_, [V] = 'RENEW CONTRACT TASK'[Sub_New])) + 0,
       "@j", COUNTROWS(FILTER(Base_, [V] = 'RENEW CONTRACT TASK'[Sub_New] && [J])) + 0)
+  // พี่ปอนด์ 04/11/2026 แยกกราฟและตารางทีละปีที่สัญญาเดิมหมด (กราฟสามปีอยู่แถวเดียวกัน) Vendor คูณปี นับทีละปี
+  VAR YearsT_ = SELECTCOLUMNS(Years_, "@yy", [Value])
+  VAR RowsY_ =
+    ADDCOLUMNS(
+      CROSSJOIN(Vendors_, YearsT_),
+      "@v", 'RENEW CONTRACT TASK'[Sub_New],
+      "@h", SUBSTITUTE(SUBSTITUTE(SUBSTITUTE('RENEW CONTRACT TASK'[Sub_New], "&", "&amp;"), "<", "&lt;"), ">", "&gt;"),
+      "@a1", COUNTROWS(FILTER(Base_, [V] = 'RENEW CONTRACT TASK'[Sub_New] && [Y] = [@yy] && [A] = "<=7 Day")) + 0,
+      "@a2", COUNTROWS(FILTER(Base_, [V] = 'RENEW CONTRACT TASK'[Sub_New] && [Y] = [@yy] && [A] = "<=15 Day")) + 0,
+      "@a3", COUNTROWS(FILTER(Base_, [V] = 'RENEW CONTRACT TASK'[Sub_New] && [Y] = [@yy] && [A] = "<=30 Day")) + 0,
+      "@a4", COUNTROWS(FILTER(Base_, [V] = 'RENEW CONTRACT TASK'[Sub_New] && [Y] = [@yy] && [A] = ">30 Day")) + 0,
+      "@n", COUNTROWS(FILTER(Base_, [V] = 'RENEW CONTRACT TASK'[Sub_New] && [Y] = [@yy])) + 0,
+      "@j", COUNTROWS(FILTER(Base_, [V] = 'RENEW CONTRACT TASK'[Sub_New] && [Y] = [@yy] && [J])) + 0)
+  VAR Y0_ = MINX(YearsT_, [@yy])
   VAR N_ = SUMX(Rows_, [@n])
   VAR Ages_ = {"<=7 Day", "<=15 Day", "<=30 Day", ">30 Day"}
   VAR OddRows_ = FILTER(Base_, NOT ([A] IN Ages_) && NOT ([V] IN Hide_))
   VAR Odd_ = COUNTROWS(OddRows_) + 0
   VAR OddList_ = CONCATENATEX(DISTINCT(SELECTCOLUMNS(OddRows_, "a", COALESCE([A], "ว่าง"))), [a], " , ")
   VAR J_ = SUMX(Rows_, [@j])
-  VAR MaxN_ = MAX(1, MAXX(Rows_, [@n]))
+  VAR MaxN_ = MAX(1, MAXX(RowsY_, [@n]))   // สเกลเดียวกันทุกปี แท่งยาวเท่ากัน = งานเท่ากัน เทียบข้ามปีได้
   // พี่ปอนด์ 04/11/2026 ตารางสีแบบเมล 0 Wait (หัวเทา ตัวดำ เส้นเทาบาง) กราฟแบบเมล Call Center วางบนตาราง ไม่มีคอลัมน์ TOTAL กับ % REJECT (ยอดรวมอยู่ในกราฟ)
   // Outlook ใช้ Word engine สไตล์ inline ทุกช่อง ใช้ตารางแทน div
   // พี่ปอนด์ 04/11/2026 สีและตัวอักษรชุดเดียวกับเมล 0 Wait Assign (หัวตาราง #D9D9D9 ตัว #222 เส้น #D9D9D9 , เนื้อตัวปกติ , ข้อความรอง #444 #666 #888)
@@ -53,25 +68,33 @@ DEFINE
   VAR StageFull_ = COALESCE(MAXX(FILTER('RENEW CONTRACT TASK', 'RENEW CONTRACT TASK'[GROUP] = GroupKey_ && LEFT('RENEW CONTRACT TASK'[SUB_STAGE], LEN(StageKey_)) = StageKey_), 'RENEW CONTRACT TASK'[SUB_STAGE]), StageName_)
   VAR GH_ = SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(GroupKey_, "&", "&amp;"), "<", "&lt;"), ">", "&gt;")
   VAR SH_ = SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(StageFull_, "&", "&amp;"), "<", "&lt;"), ">", "&gt;")
-  VAR K_ = COUNTROWS(Rows_)
-  VAR Top_ = MAXX(TOPN(1, Rows_, [@n], DESC, [@v], ASC), [@v])
+  VAR K_ = COUNTROWS(Vendors_)
+  VAR YP_ = "<p style='" & F_ & "font-size:13px;color:#222;margin:"   // หัวปีของกราฟและตาราง
   VAR Summary_ =
-    "<table border='1' bordercolor='#D9D9D9' cellpadding='0' cellspacing='0' style='border-collapse:collapse;border:1px solid #D9D9D9'><tr>"
-      & TH_ & "left'>GROUP</th>" & TH_ & "left'>SUB_STAGE</th>" & TH_ & "left'>VENDOR</th>" & TH_ & "right'>&lt;=7 Day</th>" & TH_ & "right'>&lt;=15 Day</th>" & TH_ & "right'>&lt;=30 Day</th>"
-      & TH_ & "right'>&gt;30 Day</th>" & TH_ & "right'>REJECT</th></tr>"
-      & CONCATENATEX(Rows_,
-          "<tr>" & IF([@v] = Top_, TD_ & "vertical-align:top' rowspan='" & K_ & "'>" & GH_ & "</td>" & TD_ & "vertical-align:top' rowspan='" & K_ & "'>" & SH_ & "</td>", "")
-            & TD_ & "'>" & [@h] & "</td>"   // พี่ปอนด์ 04/11/2026 เนื้อตารางตัวปกติ หนาแค่หัวกับ Grand Total
-            & TD_ & "text-align:right'>" & IF([@a1] = 0, Z_, FORMAT([@a1], "#,0")) & "</td>"
-            & TD_ & "text-align:right'>" & IF([@a2] = 0, Z_, FORMAT([@a2], "#,0")) & "</td>"
-            & TD_ & "text-align:right'>" & IF([@a3] = 0, Z_, FORMAT([@a3], "#,0")) & "</td>"
-            & TD_ & "text-align:right'>" & IF([@a4] = 0, Z_, "<span style='color:#C00000'>" & FORMAT([@a4], "#,0") & "</span>") & "</td>"
-            & TD_ & "text-align:right'>" & IF([@j] = 0, Z_, FORMAT([@j], "#,0")) & "</td></tr>",
-          "", [@n], DESC, [@v], ASC)
-      & "<tr>" & TF_ & "left' colspan='3'>Grand Total</td>"
-      & TF_ & "right'>" & FORMAT(SUMX(Rows_, [@a1]), "#,#") & "</td>" & TF_ & "right'>" & FORMAT(SUMX(Rows_, [@a2]), "#,#") & "</td>"
-      & TF_ & "right'>" & FORMAT(SUMX(Rows_, [@a3]), "#,#") & "</td>" & TF_ & "right;color:#C00000'>" & FORMAT(SUMX(Rows_, [@a4]), "#,#") & "</td>"
-      & TF_ & "right'>" & FORMAT(J_, "#,#") & "</td></tr></table>"
+    CONCATENATEX(YearsT_,
+      VAR y = [@yy]
+      VAR R = FILTER(RowsY_, [@yy] = y)
+      VAR ny = SUMX(R, [@n])
+      VAR TopY = MAXX(TOPN(1, R, [@n], DESC, [@v], ASC), [@v])
+      RETURN "<!-- year " & y & " -->" & YP_ & IF(y = Y0_, "0", "18px") & " 0 6px'>ปี " & y & " (" & FORMAT(ny, "#,0") & " งาน)</p>"
+        & IF(ny = 0, "<p style='margin:0;" & F_ & "color:#666'>ไม่มีงาน Reject</p>",
+          "<table border='1' bordercolor='#D9D9D9' cellpadding='0' cellspacing='0' style='border-collapse:collapse;border:1px solid #D9D9D9'><tr>"
+            & TH_ & "left'>GROUP</th>" & TH_ & "left'>SUB_STAGE</th>" & TH_ & "left'>VENDOR</th>" & TH_ & "right'>&lt;=7 Day</th>" & TH_ & "right'>&lt;=15 Day</th>" & TH_ & "right'>&lt;=30 Day</th>"
+            & TH_ & "right'>&gt;30 Day</th>" & TH_ & "right'>REJECT</th></tr>"
+            & CONCATENATEX(R,
+                "<tr>" & IF([@v] = TopY, TD_ & "vertical-align:top' rowspan='" & K_ & "'>" & GH_ & "</td>" & TD_ & "vertical-align:top' rowspan='" & K_ & "'>" & SH_ & "</td>", "")
+                  & TD_ & "'>" & [@h] & "</td>"   // พี่ปอนด์ 04/11/2026 เนื้อตารางตัวปกติ หนาแค่หัวกับ Grand Total
+                  & TD_ & "text-align:right'>" & IF([@a1] = 0, Z_, FORMAT([@a1], "#,0")) & "</td>"
+                  & TD_ & "text-align:right'>" & IF([@a2] = 0, Z_, FORMAT([@a2], "#,0")) & "</td>"
+                  & TD_ & "text-align:right'>" & IF([@a3] = 0, Z_, FORMAT([@a3], "#,0")) & "</td>"
+                  & TD_ & "text-align:right'>" & IF([@a4] = 0, Z_, "<span style='color:#C00000'>" & FORMAT([@a4], "#,0") & "</span>") & "</td>"
+                  & TD_ & "text-align:right'>" & IF([@j] = 0, Z_, FORMAT([@j], "#,0")) & "</td></tr>",
+                "", [@n], DESC, [@v], ASC)
+            & "<tr>" & TF_ & "left' colspan='3'>Grand Total</td>"
+            & TF_ & "right'>" & FORMAT(SUMX(R, [@a1]), "#,#") & "</td>" & TF_ & "right'>" & FORMAT(SUMX(R, [@a2]), "#,#") & "</td>"
+            & TF_ & "right'>" & FORMAT(SUMX(R, [@a3]), "#,#") & "</td>" & TF_ & "right;color:#C00000'>" & FORMAT(SUMX(R, [@a4]), "#,#") & "</td>"
+            & TF_ & "right'>" & FORMAT(SUMX(R, [@j]), "#,#") & "</td></tr></table>"),
+      "", [@yy], ASC)
   // กราฟแท่งซ้อนต่อ Vendor แบ่งสีตามอายุงาน ยาวตามยอดรวม แบบเมล Call Center (พี่ปอนด์ 04/11/2026: ชื่อตัวปกติ ไม่มียอดในวงเล็บ เพราะมีในตารางแล้ว ,
   //   แก้ซ้ำ 04/11/2026: ชื่อ (ยอด) กลับมา , Vendor ที่เป็น 0 ไม่ขึ้นในกราฟ เพราะมีในตารางแล้ว
   //   ตัวเลขขึ้นทุกช่อง ช่องที่เล็กกว่า Min_ ขยายให้พอดีตัวเลข , คำอธิบายสีเป็นจุดกลม)
@@ -81,19 +104,30 @@ DEFINE
   VAR Dot_ = "<span style='font-size:20px;line-height:14px;vertical-align:-2px;color:"
   // พี่ปอนด์ 04/11/2026 Outlook บนคอมดันชื่อบางแถวลง (ตารางซ้อน ช่องชื่อไม่ล็อกความสูง): แถวละตาราง ไม่ซ้อน , ช่องชื่อกว้างเท่ากันทุกแถว (คำนวณจากชื่อยาวสุด) ,
   //   ทุกช่องล็อกสูง 22px กึ่งกลาง line-height แบบ exactly ให้ Word engine วาดเท่ากันทุกแถว
-  VAR LW_ = MAX(110, ROUND(MAXX(FILTER(Rows_, [@n] > 0), LEN([@v]) + LEN(FORMAT([@n], "#,0")) + 3) * 7.5, 0) + 12)
+  VAR LW_ = MAX(110, ROUND(MAXX(FILTER(RowsY_, [@n] > 0), LEN([@v]) + LEN(FORMAT([@n], "#,0")) + 3) * 7.5, 0) + 12)
+  // พี่ปอนด์ 04/11/2026 กราฟสามปีอยู่แถวเดียวกัน: ตารางนอกแถวเดียว ปีละช่อง แต่ละช่องคือกราฟแบบเดิม แท่งสั้นลงให้สามปีพอดีจอ
   VAR Chart_ =
-    CONCATENATEX(FILTER(Rows_, [@n] > 0),
+    "<table border='0' cellpadding='0' cellspacing='0' style='border-collapse:collapse'><tr>"
+      & CONCATENATEX(YearsT_,
+          VAR y = [@yy]
+          VAR R = FILTER(RowsY_, [@yy] = y)
+          VAR ny = SUMX(R, [@n])
           VAR k = DIVIDE(Bars_, MaxN_)
-          VAR w1 = MAX(Min_, ROUND([@a1] * k, 0))  VAR w2 = MAX(Min_, ROUND([@a2] * k, 0))  VAR w3 = MAX(Min_, ROUND([@a3] * k, 0))  VAR w4 = MAX(Min_, ROUND([@a4] * k, 0))
-          RETURN "<table border='0' cellpadding='0' cellspacing='0' style='border-collapse:collapse;margin:0 0 8px'><tr>"
-            & "<td width='" & LW_ & "' height='22' valign='middle' nowrap style='padding:0 12px 0 0;width:" & LW_ & "px;height:22px;" & F_ & "font-size:13px;line-height:22px;mso-line-height-rule:exactly;color:#333'>" & [@h] & " (" & FORMAT([@n], "#,0") & ")</td>"
-            & IF([@a1] > 0, "<td width='" & w1 & "' height='22' bgcolor='" & C1_ & "' align='center' valign='middle' style='width:" & w1 & "px;height:22px;background:" & C1_ & ";" & F_ & "font-size:11px;line-height:22px;mso-line-height-rule:exactly;font-weight:bold;color:#fff'>" & FORMAT([@a1], "#,0") & "</td>", "")
-            & IF([@a2] > 0, "<td width='" & w2 & "' height='22' bgcolor='" & C2_ & "' align='center' valign='middle' style='width:" & w2 & "px;height:22px;background:" & C2_ & ";" & F_ & "font-size:11px;line-height:22px;mso-line-height-rule:exactly;font-weight:bold;color:#fff'>" & FORMAT([@a2], "#,0") & "</td>", "")
-            & IF([@a3] > 0, "<td width='" & w3 & "' height='22' bgcolor='" & C3_ & "' align='center' valign='middle' style='width:" & w3 & "px;height:22px;background:" & C3_ & ";" & F_ & "font-size:11px;line-height:22px;mso-line-height-rule:exactly;font-weight:bold;color:#fff'>" & FORMAT([@a3], "#,0") & "</td>", "")
-            & IF([@a4] > 0, "<td width='" & w4 & "' height='22' bgcolor='" & C4_ & "' align='center' valign='middle' style='width:" & w4 & "px;height:22px;background:" & C4_ & ";" & F_ & "font-size:11px;line-height:22px;mso-line-height-rule:exactly;font-weight:bold;color:#fff'>" & FORMAT([@a4], "#,0") & "</td>", "")
-            & "</tr></table>",
-          "", [@n], DESC, [@v], ASC)
+          RETURN "<td valign='top' style='padding:0 36px 0 0;vertical-align:top'><!-- year " & y & " -->" & YP_ & "0 0 8px'>ปี " & y & " (" & FORMAT(ny, "#,0") & " งาน)</p>"
+            & IF(ny = 0, "<p style='margin:0;" & F_ & "color:#666'>ไม่มีงาน Reject</p>",
+              CONCATENATEX(FILTER(R, [@n] > 0),
+                VAR w1 = MAX(Min_, ROUND([@a1] * k, 0))  VAR w2 = MAX(Min_, ROUND([@a2] * k, 0))  VAR w3 = MAX(Min_, ROUND([@a3] * k, 0))  VAR w4 = MAX(Min_, ROUND([@a4] * k, 0))
+                RETURN "<table border='0' cellpadding='0' cellspacing='0' style='border-collapse:collapse;margin:0 0 8px'><tr>"
+                  & "<td width='" & LW_ & "' height='22' valign='middle' nowrap style='padding:0 12px 0 0;width:" & LW_ & "px;height:22px;" & F_ & "font-size:13px;line-height:22px;mso-line-height-rule:exactly;color:#333'>" & [@h] & " (" & FORMAT([@n], "#,0") & ")</td>"
+                  & IF([@a1] > 0, "<td width='" & w1 & "' height='22' bgcolor='" & C1_ & "' align='center' valign='middle' style='width:" & w1 & "px;height:22px;background:" & C1_ & ";" & F_ & "font-size:11px;line-height:22px;mso-line-height-rule:exactly;font-weight:bold;color:#fff'>" & FORMAT([@a1], "#,0") & "</td>", "")
+                  & IF([@a2] > 0, "<td width='" & w2 & "' height='22' bgcolor='" & C2_ & "' align='center' valign='middle' style='width:" & w2 & "px;height:22px;background:" & C2_ & ";" & F_ & "font-size:11px;line-height:22px;mso-line-height-rule:exactly;font-weight:bold;color:#fff'>" & FORMAT([@a2], "#,0") & "</td>", "")
+                  & IF([@a3] > 0, "<td width='" & w3 & "' height='22' bgcolor='" & C3_ & "' align='center' valign='middle' style='width:" & w3 & "px;height:22px;background:" & C3_ & ";" & F_ & "font-size:11px;line-height:22px;mso-line-height-rule:exactly;font-weight:bold;color:#fff'>" & FORMAT([@a3], "#,0") & "</td>", "")
+                  & IF([@a4] > 0, "<td width='" & w4 & "' height='22' bgcolor='" & C4_ & "' align='center' valign='middle' style='width:" & w4 & "px;height:22px;background:" & C4_ & ";" & F_ & "font-size:11px;line-height:22px;mso-line-height-rule:exactly;font-weight:bold;color:#fff'>" & FORMAT([@a4], "#,0") & "</td>", "")
+                  & "</tr></table>",
+                "", [@n], DESC, [@v], ASC))
+            & "</td>",
+          "", [@yy], ASC)
+      & "</tr></table>"
       & "<p style='margin:8px 0 0;" & F_ & "color:#555'>"
       & Dot_ & C1_ & "'>&#9679;</span> &lt;=7 Day&nbsp;&nbsp;&nbsp; "
       & Dot_ & C2_ & "'>&#9679;</span> &lt;=15 Day&nbsp;&nbsp;&nbsp; "
@@ -124,8 +158,8 @@ DEFINE
             & "<div style='" & F_ & "font-size:13px;color:#666;margin-top:4px;white-space:nowrap'>TOTAL Reject</div></td></tr></table></td>"
             & "<td width='22' style='padding:0'>&nbsp;</td>"
             & "<td valign='top' style='padding:0'>" & Head_ & "</td></tr></table>"
-            & H_ & "งาน Reject แต่ละ Vendor แยกตามอายุงาน</p>" & Chart_ & "</div>"
-            & H_ & "จำนวนงานที่ถูก Reject ของแต่ละ Vendor แยกตามอายุงาน</p>" & Summary_ & "</div>"
+            & H_ & "งาน Reject แต่ละ Vendor แยกตามอายุงาน แยกตามปีที่สัญญาเดิมหมด</p>" & Chart_ & "</div>"
+            & H_ & "จำนวนงานที่ถูก Reject ของแต่ละ Vendor แยกตามอายุงาน แยกตามปีที่สัญญาเดิมหมด</p>" & Summary_ & "</div>"
             & "<p style='margin:0'>&nbsp;</p>")
       & P_ & "ดูรายงานเต็ม: <a href='" & Link_ & "' style='color:#1A73E8;font-weight:bold'>Renewal Dashboard &amp; SAR Report</a></p>"
       & "<p style='margin:14px 0 0;" & F_ & "font-size:12px;color:#888'><b>หมายเหตุ:</b> ไฟล์แนบมีเฉพาะงานที่ถูก Reject " & FORMAT(J_, "#,0") & " งาน (REJECT_FLAG = Yes) อีเมลนี้ถูกส่งโดยระบบอัตโนมัติ กรุณาอย่าตอบกลับ</p>"   // พี่ปอนด์ 04/11/2026 ไฟล์แนบเฉพาะ flag Yes
