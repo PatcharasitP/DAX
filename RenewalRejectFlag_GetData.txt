@@ -76,7 +76,7 @@ DEFINE
       VAR R = FILTER(RowsY_, [@yy] = y)
       VAR ny = SUMX(R, [@n])
       VAR TopY = MAXX(TOPN(1, R, [@n], DESC, [@v], ASC), [@v])
-      RETURN "<!-- year " & y & " -->" & YP_ & IF(y = Y0_, "0", "18px") & " 0 6px'>ปี " & y & " (" & FORMAT(ny, "#,0") & " งาน)</p>"
+      RETURN "<!-- year " & y & " -->" & YP_ & IF(y = Y0_, "0", "18px") & " 0 6px'>ปี " & y & " (" & FORMAT(ny, "#,0") & ")</p>"
         & IF(ny = 0, "<p style='margin:0;" & F_ & "color:#666'>ไม่มีงาน Reject</p>",
           "<table border='1' bordercolor='#D9D9D9' cellpadding='0' cellspacing='0' style='border-collapse:collapse;border:1px solid #D9D9D9'><tr>"
             & TH_ & "left'>GROUP</th>" & TH_ & "left'>SUB_STAGE</th>" & TH_ & "left'>VENDOR</th>" & TH_ & "right'>&lt;=7 Day</th>" & TH_ & "right'>&lt;=15 Day</th>" & TH_ & "right'>&lt;=30 Day</th>"
@@ -113,7 +113,7 @@ DEFINE
           VAR R = FILTER(RowsY_, [@yy] = y)
           VAR ny = SUMX(R, [@n])
           VAR k = DIVIDE(Bars_, MaxN_)
-          RETURN "<td valign='top' style='padding:0 36px 0 0;vertical-align:top'><!-- year " & y & " -->" & YP_ & "0 0 8px'>ปี " & y & " (" & FORMAT(ny, "#,0") & " งาน)</p>"
+          RETURN "<td valign='top' style='padding:0 36px 0 0;vertical-align:top'><!-- year " & y & " -->" & YP_ & "0 0 8px'>ปี " & y & " (" & FORMAT(ny, "#,0") & ")</p>"
             & IF(ny = 0, "<p style='margin:0;" & F_ & "color:#666'>ไม่มีงาน Reject</p>",
               CONCATENATEX(FILTER(R, [@n] > 0),
                 VAR w1 = MAX(Min_, ROUND([@a1] * k, 0))  VAR w2 = MAX(Min_, ROUND([@a2] * k, 0))  VAR w3 = MAX(Min_, ROUND([@a3] * k, 0))  VAR w4 = MAX(Min_, ROUND([@a4] * k, 0))
