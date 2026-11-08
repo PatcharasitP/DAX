@@ -14,7 +14,7 @@ DEFINE
   VAR Years_ = {2025, 2026, 2027}                   // <-- ปีที่สัญญาเดิมหมด (OLD_CONTRACT_END_DATE) ที่นับ พี่ปอนด์ 04/11/2026 เอาแค่ 2025 ถึง 2027
   VAR YearsText_ = "2025 ถึง 2027"                  // <-- ข้อความช่วงปีในหัวเมล แก้คู่กับ Years_
   VAR Hide_ = {" No Assign", ""}                    // <-- Sub_New ที่ไม่นับเป็น Vendor
-  VAR Layout6_ = FALSE()                            // <-- TRUE แบบ 6: ขั้น @chart6 (1.1.2 3.0.4) มีกราฟ ทุกขั้นใช้ตารางรวมสามปี ไม่สนสวิตช์ TableOnlySmall_ CombineYearsSmall_ (พี่ปอนด์ 08/11/2026)
+  VAR Layout6_ = TRUE()                            // <-- TRUE แบบ 6: ขั้น @chart6 (1.1.2 3.0.4) มีกราฟ ทุกขั้นใช้ตารางรวมสามปี ไม่สนสวิตช์ TableOnlySmall_ CombineYearsSmall_ (พี่ปอนด์ 08/11/2026)
   VAR TableOnlySmall_ = TRUE()                     // <-- TRUE ขั้น @small (1.1.1 1.1.2 2.0.2) มีแต่ตาราง ไม่มีกราฟ ขึ้นเฉพาะแถวที่มีงาน , 3.0.4 เหมือนเดิม (พี่ปอนด์ 08/11/2026 แบบ 3)
   VAR ShowEmptyYearSmall_ = TRUE()                // <-- TRUE ใช้คู่ CombineYearsSmall_ ปีที่ไม่มีงานยังขึ้นแถว ไม่มีงาน Reject (พี่ปอนด์ 08/11/2026 แบบ 5)
   VAR CombineYearsSmall_ = TRUE()                  // <-- TRUE ใช้คู่ TableOnlySmall_ ขั้น @small รวมสามปีเป็นตารางเดียวมีคอลัมน์ ปี (พี่ปอนด์ 08/11/2026 แบบ 4)
