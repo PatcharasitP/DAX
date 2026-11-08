@@ -6,14 +6,15 @@
 DEFINE
   // <-- ขั้นที่นับ: รหัสขั้น (SUB_STAGE ขึ้นต้นด้วย 5 ตัวนี้) , คอลัมน์ที่ใช้ตัดสินว่า Reject , ชื่อสำรองถ้าข้อมูลไม่มีขั้นนี้เลย
   VAR Stages_ =
-    DATATABLE("@s", STRING, "@src", STRING, "@name", STRING, "@small", BOOLEAN, {   // @small = ขั้นงานน้อย ใช้กับสวิตช์ TableOnlySmall_
-      {"1.1.1", "REASON", "1.1.1 Rejected Draft Contract (From SMT)", TRUE},
-      {"1.1.2", "REASON", "1.1.2 Return Pre-Contract to Edit", TRUE},
-      {"2.0.2", "REASON", "2.0.2 Back Contract to Draft (SMT Process)", TRUE},
-      {"3.0.4", "REJECT_REASON", "3.0.4 Review Completed Contract (SMT Process)", FALSE}})
+    DATATABLE("@s", STRING, "@src", STRING, "@name", STRING, "@small", BOOLEAN, "@chart6", BOOLEAN, {   // @small = ขั้นงานน้อย ใช้กับสวิตช์ TableOnlySmall_ , @chart6 = ขั้นที่มีกราฟในแบบ 6
+      {"1.1.1", "REASON", "1.1.1 Rejected Draft Contract (From SMT)", TRUE, FALSE},
+      {"1.1.2", "REASON", "1.1.2 Return Pre-Contract to Edit", TRUE, TRUE},
+      {"2.0.2", "REASON", "2.0.2 Back Contract to Draft (SMT Process)", TRUE, FALSE},
+      {"3.0.4", "REJECT_REASON", "3.0.4 Review Completed Contract (SMT Process)", FALSE, TRUE}})
   VAR Years_ = {2025, 2026, 2027}                   // <-- ปีที่สัญญาเดิมหมด (OLD_CONTRACT_END_DATE) ที่นับ พี่ปอนด์ 04/11/2026 เอาแค่ 2025 ถึง 2027
   VAR YearsText_ = "2025 ถึง 2027"                  // <-- ข้อความช่วงปีในหัวเมล แก้คู่กับ Years_
   VAR Hide_ = {" No Assign", ""}                    // <-- Sub_New ที่ไม่นับเป็น Vendor
+  VAR Layout6_ = FALSE()                            // <-- TRUE แบบ 6: ขั้น @chart6 (1.1.2 3.0.4) มีกราฟ ทุกขั้นใช้ตารางรวมสามปี ไม่สนสวิตช์ TableOnlySmall_ CombineYearsSmall_ (พี่ปอนด์ 08/11/2026)
   VAR TableOnlySmall_ = TRUE()                     // <-- TRUE ขั้น @small (1.1.1 1.1.2 2.0.2) มีแต่ตาราง ไม่มีกราฟ ขึ้นเฉพาะแถวที่มีงาน , 3.0.4 เหมือนเดิม (พี่ปอนด์ 08/11/2026 แบบ 3)
   VAR ShowEmptyYearSmall_ = TRUE()                // <-- TRUE ใช้คู่ CombineYearsSmall_ ปีที่ไม่มีงานยังขึ้นแถว ไม่มีงาน Reject (พี่ปอนด์ 08/11/2026 แบบ 5)
   VAR CombineYearsSmall_ = TRUE()                  // <-- TRUE ใช้คู่ TableOnlySmall_ ขั้น @small รวมสามปีเป็นตารางเดียวมีคอลัมน์ ปี (พี่ปอนด์ 08/11/2026 แบบ 4)
@@ -91,7 +92,7 @@ DEFINE
   VAR Blocks_ =
     CONCATENATEX(StageInfo_,
       VAR s = [@s]
-      VAR TblOnly = TableOnlySmall_ && [@small]   // ขั้นนี้มีแต่ตาราง
+      VAR TblOnly = IF(Layout6_, NOT [@chart6], TableOnlySmall_ && [@small])   // ขั้นนี้มีแต่ตาราง
       VAR RS = FILTER(RowsY_, [@ss] = s)
       VAR ns = SUMX(RS, [@n])
       VAR k = DIVIDE(Bars_, MaxN_)
@@ -178,9 +179,9 @@ DEFINE
           & TF_ & "right'>" & FORMAT(SUMX(RSn, [@a1]), "#,#") & "</td>" & TF_ & "right'>" & FORMAT(SUMX(RSn, [@a2]), "#,#") & "</td>"
           & TF_ & "right'>" & FORMAT(SUMX(RSn, [@a3]), "#,#") & "</td>" & TF_ & "right;color:#C00000'>" & FORMAT(SUMX(RSn, [@a4]), "#,#") & "</td>"
           & TF_ & "right'>" & FORMAT(ns, "#,#") & "</td></tr></table>"
-      RETURN "<!-- stage " & s & " -->" & H_ & "<span style='font-size:13px;color:#222'>" & SH & "</span> <span style='color:#666'>(" & FORMAT(ns, "#,0") & ")</span></p>"
+      RETURN "<!-- stage " & s & " -->" & H_ & "<span style='font-size:12px;color:#222'>" & SH & "</span> <span style='font-size:12px;color:#666'>(" & FORMAT(ns, "#,0") & ")</span></p>"
         & IF(ns = 0, "<p style='margin:0;" & F_ & "font-size:13px;color:#666'>ไม่มีงาน Reject ในขั้นนี้ ทั้ง 3 ปี</p>",   // พี่ปอนด์ 08/11/2026 ขั้นที่ไม่มีงานขึ้นก้อนไว้ บอกว่าไม่มีงาน
-            IF(TblOnly, "", "<!-- chart -->" & Chart & Legend_) & "<!-- table -->" & IF(TblOnly && CombineYearsSmall_, Comb, Tables))
+            IF(TblOnly, "", "<!-- chart -->" & Chart & Legend_) & "<!-- table -->" & IF(Layout6_ || (TblOnly && CombineYearsSmall_), Comb, Tables))
         & "</div>",
       "", [@s], ASC)
   // เนื้อเมลทั้งฉบับ flow เอาไปส่งตรง ๆ ไม่ต้องประกอบเอง (พี่ปอนด์ 04/11 action น้อยที่สุด)
