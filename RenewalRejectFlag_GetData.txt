@@ -15,7 +15,7 @@ DEFINE
   VAR YearsText_ = "2025 ถึง 2027"                  // <-- ข้อความช่วงปีในหัวเมล แก้คู่กับ Years_
   VAR Hide_ = {" No Assign", ""}                    // <-- Sub_New ที่ไม่นับเป็น Vendor
   VAR TableOnlySmall_ = TRUE()                     // <-- TRUE ขั้น @small (1.1.1 1.1.2 2.0.2) มีแต่ตาราง ไม่มีกราฟ ขึ้นเฉพาะแถวที่มีงาน , 3.0.4 เหมือนเดิม (พี่ปอนด์ 08/11/2026 แบบ 3)
-  VAR ShowEmptyYearSmall_ = FALSE()                // <-- TRUE ใช้คู่ CombineYearsSmall_ ปีที่ไม่มีงานยังขึ้นแถว ไม่มีงาน Reject (พี่ปอนด์ 08/11/2026 แบบ 5)
+  VAR ShowEmptyYearSmall_ = TRUE()                // <-- TRUE ใช้คู่ CombineYearsSmall_ ปีที่ไม่มีงานยังขึ้นแถว ไม่มีงาน Reject (พี่ปอนด์ 08/11/2026 แบบ 5)
   VAR CombineYearsSmall_ = TRUE()                  // <-- TRUE ใช้คู่ TableOnlySmall_ ขั้น @small รวมสามปีเป็นตารางเดียวมีคอลัมน์ ปี (พี่ปอนด์ 08/11/2026 แบบ 4)
   VAR ShowEmpty_ = TRUE()                          // <-- ตารางขึ้น Vendor ที่ว่างในปีนั้นด้วยไหม TRUE แบบเดิม , FALSE ซ่อนแถวว่าง เมลสั้นลง (พี่ปอนด์ 08/11/2026 ขอดู 2 แบบ)
   VAR Bars_ = 170                                  // ความยาวแท่งยาวสุด (px) กราฟสามปีวางแถวเดียวกัน
