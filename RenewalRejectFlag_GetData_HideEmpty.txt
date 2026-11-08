@@ -1,0 +1,200 @@
+// Reject AutoMail 4 ขั้น  สรุปงาน Reject ทุก Vendor ทีละขั้น คืนแถวเดียว HTML ประกอบจบใน DAX (รุ่นขั้นเดียว 3.0.4 เก็บไว้ที่ GetData_Summary_304only.dax.bak)
+// พี่ปอนด์ 08/11/2026: เพิ่ม 1.1.1 , 1.1.2 , 2.0.2 นับงาน Reject จากคอลัมน์ REASON มีค่า (REJECT_REASON_FLAG) , 3.0.4 นับจาก REJECT_REASON มีค่า (REJECT_FLAG) เหมือนเดิม
+//   แต่ละขั้นมีกราฟและตารางแยกปี 2025 2026 2027 , การ์ด TOTAL Reject รวม 4 ขั้น , หัวเรื่องเมลภาษาอังกฤษ , ขั้นที่ไม่มีงานขึ้นก้อนบอกว่าไม่มีงาน Reject
+// พี่ปอนด์ 04/11/2026: VENDOR = Sub_New , AGING_GROUP <=7 , <=15 , <=30 , >30 Day (>30 ตัวแดง) , Vendor ที่ไม่มีงานยังขึ้นในตารางเป็นช่องว่างให้เทียบกันได้
+// AGING ตอนนี้ใช้คอลัมน์คำนวณในไฟล์ (Aging_Days , Aging Group) วันที่ฐานข้อมูลมี AGING_DAY , AGING_GROUP แก้บรรทัดที่มีป้าย <-- AGING
+DEFINE
+  // <-- ขั้นที่นับ: รหัสขั้น (SUB_STAGE ขึ้นต้นด้วย 5 ตัวนี้) , คอลัมน์ที่ใช้ตัดสินว่า Reject , ชื่อสำรองถ้าข้อมูลไม่มีขั้นนี้เลย
+  VAR Stages_ =
+    DATATABLE("@s", STRING, "@src", STRING, "@name", STRING, {
+      {"1.1.1", "REASON", "1.1.1 Rejected Draft Contract (From SMT)"},
+      {"1.1.2", "REASON", "1.1.2 Return Pre-Contract to Edit"},
+      {"2.0.2", "REASON", "2.0.2 Back Contract to Draft (SMT Process)"},
+      {"3.0.4", "REJECT_REASON", "3.0.4 Review Completed Contract (SMT Process)"}})
+  VAR Years_ = {2025, 2026, 2027}                   // <-- ปีที่สัญญาเดิมหมด (OLD_CONTRACT_END_DATE) ที่นับ พี่ปอนด์ 04/11/2026 เอาแค่ 2025 ถึง 2027
+  VAR YearsText_ = "2025 ถึง 2027"                  // <-- ข้อความช่วงปีในหัวเมล แก้คู่กับ Years_
+  VAR Hide_ = {" No Assign", ""}                    // <-- Sub_New ที่ไม่นับเป็น Vendor
+  VAR ShowEmpty_ = FALSE()                           // <-- ตารางขึ้น Vendor ที่ว่างในปีนั้นด้วยไหม TRUE แบบเดิม , FALSE ซ่อนแถวว่าง เมลสั้นลง (พี่ปอนด์ 08/11/2026 ขอดู 2 แบบ)
+  VAR Bars_ = 170                                  // ความยาวแท่งยาวสุด (px) กราฟสามปีวางแถวเดียวกัน
+  VAR StageKeys_ = SELECTCOLUMNS(Stages_, "@k", [@s])
+  VAR ReasonKeys_ = SELECTCOLUMNS(FILTER(Stages_, [@src] = "REASON"), "@k", [@s])
+  VAR StageList_ = CONCATENATEX(Stages_, [@s], ", ", [@s], ASC)
+  VAR Vendors_ = FILTER(DISTINCT('RENEW CONTRACT TASK'[Sub_New]), NOT ('RENEW CONTRACT TASK'[Sub_New] IN Hide_))
+  // งาน Reject ของทุกขั้น ตาราง Pick_ ใช้ร่วมกับแถวไฟล์ Excel (build_dax.py) ให้เมลกับไฟล์แนบนับชุดเดียวกันเสมอ
+  VAR Pick_ =
+    FILTER('RENEW CONTRACT TASK',
+      VAR s = LEFT('RENEW CONTRACT TASK'[SUB_STAGE], 5)
+      RETURN s IN StageKeys_
+        && YEAR('RENEW CONTRACT TASK'[OLD_CONTRACT_END_DATE]) IN Years_
+        && IF(s IN ReasonKeys_, 'RENEW CONTRACT TASK'[REJECT_REASON_FLAG], 'RENEW CONTRACT TASK'[REJECT_FLAG]) = "Yes")
+  VAR Base_ =
+    SELECTCOLUMNS(Pick_,
+      "S", LEFT('RENEW CONTRACT TASK'[SUB_STAGE], 5),
+      "V", 'RENEW CONTRACT TASK'[Sub_New],
+      "A", 'RENEW CONTRACT TASK'[Aging Group],       // <-- AGING เปลี่ยนเป็น [AGING_GROUP]
+      "Y", YEAR('RENEW CONTRACT TASK'[OLD_CONTRACT_END_DATE]))
+  VAR Upd_ = MAX('RENEW CONTRACT TASK'[UPDATED_DATE])
+  VAR YearsT_ = SELECTCOLUMNS(Years_, "@yy", [Value])
+  VAR StagesT_ = SELECTCOLUMNS(Stages_, "@ss", [@s])
+  // Vendor คูณปี คูณขั้น นับทีละช่อง
+  VAR RowsY_ =
+    ADDCOLUMNS(
+      CROSSJOIN(Vendors_, YearsT_, StagesT_),
+      "@v", 'RENEW CONTRACT TASK'[Sub_New],
+      "@h", SUBSTITUTE(SUBSTITUTE(SUBSTITUTE('RENEW CONTRACT TASK'[Sub_New], "&", "&amp;"), "<", "&lt;"), ">", "&gt;"),
+      "@a1", COUNTROWS(FILTER(Base_, [S] = [@ss] && [V] = 'RENEW CONTRACT TASK'[Sub_New] && [Y] = [@yy] && [A] = "<=7 Day")) + 0,
+      "@a2", COUNTROWS(FILTER(Base_, [S] = [@ss] && [V] = 'RENEW CONTRACT TASK'[Sub_New] && [Y] = [@yy] && [A] = "<=15 Day")) + 0,
+      "@a3", COUNTROWS(FILTER(Base_, [S] = [@ss] && [V] = 'RENEW CONTRACT TASK'[Sub_New] && [Y] = [@yy] && [A] = "<=30 Day")) + 0,
+      "@a4", COUNTROWS(FILTER(Base_, [S] = [@ss] && [V] = 'RENEW CONTRACT TASK'[Sub_New] && [Y] = [@yy] && [A] = ">30 Day")) + 0,
+      "@n", COUNTROWS(FILTER(Base_, [S] = [@ss] && [V] = 'RENEW CONTRACT TASK'[Sub_New] && [Y] = [@yy])) + 0)
+  VAR Y0_ = MINX(YearsT_, [@yy])
+  VAR N_ = SUMX(RowsY_, [@n])
+  VAR Ages_ = {"<=7 Day", "<=15 Day", "<=30 Day", ">30 Day"}
+  VAR OddRows_ = FILTER(Base_, NOT ([A] IN Ages_) && NOT ([V] IN Hide_))
+  VAR Odd_ = COUNTROWS(OddRows_) + 0
+  VAR OddList_ = CONCATENATEX(DISTINCT(SELECTCOLUMNS(OddRows_, "a", COALESCE([A], "ว่าง"))), [a], ", ")
+  // ชื่อขั้นเต็มกับ GROUP จากข้อมูลจริง ไม่มีในข้อมูลใช้ชื่อสำรอง
+  VAR StageInfo_ =
+    ADDCOLUMNS(Stages_,
+      "@full", COALESCE(MAXX(FILTER('RENEW CONTRACT TASK', LEFT('RENEW CONTRACT TASK'[SUB_STAGE], 5) = [@s]), 'RENEW CONTRACT TASK'[SUB_STAGE]), [@name]),
+      "@grp", COALESCE(MAXX(FILTER('RENEW CONTRACT TASK', LEFT('RENEW CONTRACT TASK'[SUB_STAGE], 5) = [@s]), 'RENEW CONTRACT TASK'[GROUP]), "-"))
+  // พี่ปอนด์ 04/11/2026 สีและตัวอักษรชุดเดียวกับเมล 0 Wait Assign (หัวตาราง #D9D9D9 ตัว #222 เส้น #D9D9D9 , เนื้อตัวปกติ , ข้อความรอง #444 #666 #888)
+  // Outlook ใช้ Word engine สไตล์ inline ทุกช่อง ใช้ตารางแทน div
+  // ฟอนต์เดียวทั้งเมล Leelawadee UI มีทั้งไทยและอังกฤษในตัว , ขนาด: หัวเรื่อง 20 , ตัวเลขการ์ด 40 , ข้อความทั่วไปและหัวข้อ 13 , ตาราง คำอธิบายสี หมายเหตุ 12 , ตัวเลขในแท่ง 11
+  VAR F_ = "font-family:Leelawadee UI,Leelawadee,Segoe UI,Tahoma,sans-serif;font-size:12px;"
+  VAR TH_ = "<th nowrap style='background:#D9D9D9;border:1px solid #D9D9D9;padding:6px 8px;" & F_ & "font-weight:bold;color:#222;text-align:"
+  VAR TD_ = "<td style='border:1px solid #D9D9D9;padding:5px 8px;" & F_ & "color:#222;"
+  VAR TF_ = "<td nowrap style='background:#F2F2F2;border:1px solid #D9D9D9;padding:6px 8px;" & F_ & "font-weight:bold;color:#222;text-align:"
+  VAR Z_ = ""   // พี่ปอนด์ 04/11/2026 ช่องที่เป็น 0 เว้นว่าง
+  VAR K_ = COUNTROWS(Vendors_)
+  VAR YP_ = "<p style='" & F_ & "font-size:13px;color:#222;margin:"   // หัวปีของกราฟและตาราง
+  VAR NoJob_ = "<p style='margin:0;" & F_ & "color:#666'>ไม่มีงาน Reject</p>"
+  // กราฟแท่งซ้อนต่อ Vendor แบ่งสีตามอายุงาน แบบเมล Call Center , ชื่อ (ยอด) , Vendor ที่เป็น 0 ไม่ขึ้นในกราฟ , ตัวเลขขาวทุกช่อง ช่องเล็กกว่า Min_ ขยายให้พอดีตัวเลข
+  VAR C1_ = "#6AA84F"  VAR C2_ = "#E6B000"  VAR C3_ = "#E69138"  VAR C4_ = "#CC0000"
+  VAR Min_ = 26
+  VAR Dot_ = "<span style='font-size:20px;line-height:14px;vertical-align:-2px;color:"
+  // Outlook บนคอมดันชื่อบางแถวลง: แถวละตาราง ไม่ซ้อน , ช่องชื่อกว้างเท่ากันทุกแถวทุกขั้น , ทุกช่องล็อกสูง 22px line-height แบบ exactly
+  VAR LW_ = MAX(110, ROUND(MAXX(FILTER(RowsY_, [@n] > 0), LEN([@v]) + LEN(FORMAT([@n], "#,0")) + 3) * 7.5, 0) + 12)
+  VAR Legend_ =
+    "<p style='margin:0 0 4px;" & F_ & "color:#555'>"
+      & Dot_ & C1_ & "'>&#9679;</span> &lt;=7 Day&nbsp;&nbsp;&nbsp; "
+      & Dot_ & C2_ & "'>&#9679;</span> &lt;=15 Day&nbsp;&nbsp;&nbsp; "
+      & Dot_ & C3_ & "'>&#9679;</span> &lt;=30 Day&nbsp;&nbsp;&nbsp; "
+      & Dot_ & C4_ & "'>&#9679;</span> &gt;30 Day</p>"
+  VAR H_ = "<div style='border-top:1px solid #E0E0E0;padding-top:14px;margin-top:18px'><p style='margin:0 0 10px;" & F_ & "font-size:13px;color:#222'>"   // พี่ปอนด์ 04/11/2026 หัวข้อส่วนไม่ต้องหนา
+  // ก้อนละขั้น: หัวขั้น (ยอด) , กราฟสามปีแถวเดียว , ตารางทีละปี (พี่ปอนด์ 08/11/2026) สเกลแท่งเดียวทั้งเมล (ฟ้าลองสเกลแยกขั้นแล้ว งาน 1 งานในขั้นเล็กวาดยาวเท่า 56 งานในขั้นอื่น อ่านผิด)
+  VAR MaxN_ = MAX(1, MAXX(RowsY_, [@n]))
+  // ป้าย <!-- stage --> <!-- chart --> <!-- table --> <!-- year --> ให้ check_v2.py แยกอ่านจากเนื้อเมลที่ส่งจริง
+  VAR Blocks_ =
+    CONCATENATEX(StageInfo_,
+      VAR s = [@s]
+      VAR RS = FILTER(RowsY_, [@ss] = s)
+      VAR ns = SUMX(RS, [@n])
+      VAR k = DIVIDE(Bars_, MaxN_)
+      VAR GH = SUBSTITUTE(SUBSTITUTE(SUBSTITUTE([@grp], "&", "&amp;"), "<", "&lt;"), ">", "&gt;")
+      VAR SH = SUBSTITUTE(SUBSTITUTE(SUBSTITUTE([@full], "&", "&amp;"), "<", "&lt;"), ">", "&gt;")
+      VAR Chart =
+        "<table border='0' cellpadding='0' cellspacing='0' style='border-collapse:collapse'><tr>"
+          & CONCATENATEX(YearsT_,
+              VAR y = [@yy]
+              VAR R = FILTER(RS, [@yy] = y)
+              VAR ny = SUMX(R, [@n])
+              RETURN "<td valign='top' style='padding:0 36px 0 0;vertical-align:top'><!-- year " & y & " -->" & YP_ & "0 0 8px'>ปี " & y & " (" & FORMAT(ny, "#,0") & ")</p>"
+                & IF(ny = 0, NoJob_,
+                  CONCATENATEX(FILTER(R, [@n] > 0),
+                    VAR w1 = MAX(Min_, ROUND([@a1] * k, 0))  VAR w2 = MAX(Min_, ROUND([@a2] * k, 0))  VAR w3 = MAX(Min_, ROUND([@a3] * k, 0))  VAR w4 = MAX(Min_, ROUND([@a4] * k, 0))
+                    RETURN "<table border='0' cellpadding='0' cellspacing='0' style='border-collapse:collapse;margin:0 0 8px'><tr>"
+                      & "<td width='" & LW_ & "' height='22' valign='middle' nowrap style='padding:0 12px 0 0;width:" & LW_ & "px;height:22px;" & F_ & "font-size:13px;line-height:22px;mso-line-height-rule:exactly;color:#333'>" & [@h] & " (" & FORMAT([@n], "#,0") & ")</td>"
+                      & IF([@a1] > 0, "<td width='" & w1 & "' height='22' bgcolor='" & C1_ & "' align='center' valign='middle' style='width:" & w1 & "px;height:22px;background:" & C1_ & ";" & F_ & "font-size:11px;line-height:22px;mso-line-height-rule:exactly;font-weight:bold;color:#fff'>" & FORMAT([@a1], "#,0") & "</td>", "")
+                      & IF([@a2] > 0, "<td width='" & w2 & "' height='22' bgcolor='" & C2_ & "' align='center' valign='middle' style='width:" & w2 & "px;height:22px;background:" & C2_ & ";" & F_ & "font-size:11px;line-height:22px;mso-line-height-rule:exactly;font-weight:bold;color:#fff'>" & FORMAT([@a2], "#,0") & "</td>", "")
+                      & IF([@a3] > 0, "<td width='" & w3 & "' height='22' bgcolor='" & C3_ & "' align='center' valign='middle' style='width:" & w3 & "px;height:22px;background:" & C3_ & ";" & F_ & "font-size:11px;line-height:22px;mso-line-height-rule:exactly;font-weight:bold;color:#fff'>" & FORMAT([@a3], "#,0") & "</td>", "")
+                      & IF([@a4] > 0, "<td width='" & w4 & "' height='22' bgcolor='" & C4_ & "' align='center' valign='middle' style='width:" & w4 & "px;height:22px;background:" & C4_ & ";" & F_ & "font-size:11px;line-height:22px;mso-line-height-rule:exactly;font-weight:bold;color:#fff'>" & FORMAT([@a4], "#,0") & "</td>", "")
+                      & "</tr></table>",
+                    "", [@n], DESC, [@v], ASC))
+                & "</td>",
+              "", [@yy], ASC)
+          & "</tr></table>"
+      VAR Tables =
+        CONCATENATEX(YearsT_,
+          VAR y = [@yy]
+          VAR R = FILTER(RS, [@yy] = y)
+          VAR ny = SUMX(R, [@n])
+          VAR TopY = MAXX(TOPN(1, R, [@n], DESC, [@v], ASC), [@v])
+          VAR RT = FILTER(R, ShowEmpty_ || [@n] > 0)   // แถว Vendor ในตารางปีนี้ ตามสวิตช์ ShowEmpty_
+          VAR KT = COUNTROWS(RT)
+          RETURN "<!-- year " & y & " -->" & YP_ & IF(y = Y0_, "14px", "18px") & " 0 6px'>ปี " & y & " (" & FORMAT(ny, "#,0") & ")</p>"
+            & IF(ny = 0, NoJob_,
+              "<table border='1' bordercolor='#D9D9D9' cellpadding='0' cellspacing='0' style='border-collapse:collapse;border:1px solid #D9D9D9'><tr>"
+                & TH_ & "left'>GROUP</th>" & TH_ & "left'>SUB_STAGE</th>" & TH_ & "left'>VENDOR</th>" & TH_ & "right'>&lt;=7 Day</th>" & TH_ & "right'>&lt;=15 Day</th>" & TH_ & "right'>&lt;=30 Day</th>"
+                & TH_ & "right'>&gt;30 Day</th>" & TH_ & "right'>REJECT</th></tr>"
+                & CONCATENATEX(RT,
+                    "<tr>" & IF([@v] = TopY, TD_ & "vertical-align:top' rowspan='" & KT & "'>" & GH & "</td>" & TD_ & "vertical-align:top' rowspan='" & KT & "'>" & SH & "</td>", "")
+                      & TD_ & "'>" & [@h] & "</td>"
+                      & TD_ & "text-align:right'>" & IF([@a1] = 0, Z_, FORMAT([@a1], "#,0")) & "</td>"
+                      & TD_ & "text-align:right'>" & IF([@a2] = 0, Z_, FORMAT([@a2], "#,0")) & "</td>"
+                      & TD_ & "text-align:right'>" & IF([@a3] = 0, Z_, FORMAT([@a3], "#,0")) & "</td>"
+                      & TD_ & "text-align:right'>" & IF([@a4] = 0, Z_, "<span style='color:#C00000'>" & FORMAT([@a4], "#,0") & "</span>") & "</td>"
+                      & TD_ & "text-align:right'>" & IF([@n] = 0, Z_, FORMAT([@n], "#,0")) & "</td></tr>",
+                    "", [@n], DESC, [@v], ASC)
+                & "<tr>" & TF_ & "left' colspan='3'>Grand Total</td>"
+                & TF_ & "right'>" & FORMAT(SUMX(R, [@a1]), "#,#") & "</td>" & TF_ & "right'>" & FORMAT(SUMX(R, [@a2]), "#,#") & "</td>"
+                & TF_ & "right'>" & FORMAT(SUMX(R, [@a3]), "#,#") & "</td>" & TF_ & "right;color:#C00000'>" & FORMAT(SUMX(R, [@a4]), "#,#") & "</td>"
+                & TF_ & "right'>" & FORMAT(ny, "#,#") & "</td></tr></table>"),
+          "", [@yy], ASC)
+      RETURN "<!-- stage " & s & " -->" & H_ & "<span style='font-size:15px;color:#222'>" & SH & "</span> <span style='color:#666'>(" & FORMAT(ns, "#,0") & ")</span></p>"
+        & IF(ns = 0, "<p style='margin:0;" & F_ & "font-size:13px;color:#666'>ไม่มีงาน Reject ในขั้นนี้ ทั้ง 3 ปี</p>",   // พี่ปอนด์ 08/11/2026 ขั้นที่ไม่มีงานขึ้นก้อนไว้ บอกว่าไม่มีงาน
+            "<!-- chart -->" & Chart & "<!-- table -->" & Tables)
+        & "</div>",
+      "", [@s], ASC)
+  // เนื้อเมลทั้งฉบับ flow เอาไปส่งตรง ๆ ไม่ต้องประกอบเอง (พี่ปอนด์ 04/11 action น้อยที่สุด)
+  VAR Link_ = "https://app.powerbi.com/groups/me/reports/5241d86e-f732-4cfe-b94c-d74fd075b262"   // <-- ลิงก์รายงาน Renewal Dashboard & SAR Report
+  VAR P_ = "<p style='margin:0 0 6px;" & F_ & "font-size:13px;color:#444'>"
+  VAR Upd = FORMAT(Upd_, "dd/mm/yyyy HH:nn")
+  // หัวเมล: หัวเรื่อง , Sub Stage , ข้อมูล ณ วันที่ , คำทักทาย (วางทางขวาของการ์ด TOTAL Reject)
+  VAR Head_ =
+    "<div style='" & F_ & "font-size:20px;font-weight:bold;color:#222;line-height:1.3'>Renewal Reject Flag</div>"
+      & "<div style='" & F_ & "font-size:13px;color:#444;margin-top:4px'>Sub Stage: " & StageList_ & "</div>"
+      & "<div style='" & F_ & "font-size:13px;color:#444;margin-top:2px'>สัญญาเดิมหมดปี " & YearsText_ & "</div>"
+      & "<p style='margin:2px 0 10px;" & F_ & "font-size:13px;color:#444'>ข้อมูล ณ " & Upd & "</p>"
+      & P_ & "เรียน ทุก Vendor</p>"
+      & "<p style='margin:0;" & F_ & "font-size:13px;color:#444'>รบกวนส่ง list ที่มีการแก้ไขแล้วเสร็จภายใน 17.00 ของทุกวัน เพื่อเป็นข้อมูลให้ทีม Follow up ต่อ และผลักดันไปสู่การ complete contract</p>"
+  VAR Body_ =
+    "<div style='" & F_ & "font-size:13px;color:#222;line-height:1.6'>"
+      & IF(N_ = 0,
+          Head_ & "<p style='margin:14px 0;" & F_ & "font-size:13px;font-weight:bold;color:#222'>วันนี้ไม่มีงาน Reject ทั้ง 4 ขั้น ทุก Vendor เคลียร์ครบแล้ว ขอบคุณค่ะ</p>",
+          "<table cellpadding='0' cellspacing='0' border='0'><tr>"
+            & "<td valign='top' style='padding:0'><table cellpadding='0' cellspacing='0' border='1' bordercolor='#D9D9D9' style='border-collapse:collapse;border:1px solid #D9D9D9'><tr><td align='center' bgcolor='#FAFAFA' style='background:#FAFAFA;border:1px solid #D9D9D9;padding:18px 24px'>"
+            & "<div style='" & F_ & "font-size:40px;font-weight:bold;color:#222;line-height:1.1'>" & FORMAT(N_, "#,0") & "</div>"
+            & "<div style='" & F_ & "font-size:13px;color:#666;margin-top:4px;white-space:nowrap'>TOTAL Reject</div></td></tr></table></td>"
+            & "<td width='22' style='padding:0'>&nbsp;</td>"
+            & "<td valign='top' style='padding:0'>" & Head_ & "</td></tr></table>"
+            & H_ & "งาน Reject แต่ละขั้น แยก Vendor ตามอายุงาน และปีที่สัญญาเดิมหมด</p>" & Legend_ & "</div>"
+            & Blocks_
+            & "<p style='margin:0'>&nbsp;</p>")
+      & P_ & "ดูรายงานเต็ม: <a href='" & Link_ & "' style='color:#1A73E8;font-weight:bold'>Renewal Dashboard &amp; SAR Report</a></p>"
+      & "<p style='margin:14px 0 0;" & F_ & "font-size:12px;color:#888'><b>หมายเหตุ:</b> ไฟล์แนบมีเฉพาะงานที่ถูก Reject " & FORMAT(N_, "#,0") & " งาน (ขั้น 1.1.1, 1.1.2, 2.0.2 นับจาก REASON มีค่า ขั้น 3.0.4 นับจาก REJECT_REASON มีค่า) อีเมลนี้ถูกส่งโดยระบบอัตโนมัติ กรุณาอย่าตอบกลับ</p>"
+      // กันพลาดในอนาคต: งานที่ AGING ไม่ตรง 4 ช่วง จะไม่อยู่ในช่องสีใดเลย ขึ้นเตือนแดงให้เห็นทันที ปกติไม่ขึ้น
+      & IF(Odd_ > 0, "<p style='margin:6px 0 0;" & F_ & "color:#C00000'>ตรวจข้อมูล: มี " & Odd_ & " งานที่ AGING_GROUP ไม่ตรง 4 ช่วง (" & OddList_ & ") ไม่ได้นับในกราฟและตาราง</p>", "")
+      & "</div>"
+  // แถวรายละเอียดทุกงาน JSON array ของ object Office Script เขียนลงชีท ALL (สร้างจาก build_dax.py ห้ามแก้มือ)
+  VAR Detail_ =
+    "["
+      & CONCATENATEX(
+          FILTER(Pick_, NOT ('RENEW CONTRACT TASK'[Sub_New] IN Hide_)),   // งาน Reject ชุดเดียวกับการ์ดและตาราง (Pick_ ใน GetData_Summary.dax) ทั้ง 4 ขั้น พี่ปอนด์ 08/11/2026
+          "{" & """GROUP"":" & """" & SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(LEFT(COALESCE('RENEW CONTRACT TASK'[GROUP] & "", ""), 32000), "\", "\\"), """", "\"""), UNICHAR(13), ""), UNICHAR(10), "\n"), UNICHAR(9), " ") & """" & "," & """SUB_STAGE"":" & """" & SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(LEFT(COALESCE('RENEW CONTRACT TASK'[SUB_STAGE] & "", ""), 32000), "\", "\\"), """", "\"""), UNICHAR(13), ""), UNICHAR(10), "\n"), UNICHAR(9), " ") & """" & "," & """VENDOR"":" & """" & SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(LEFT(COALESCE('RENEW CONTRACT TASK'[Sub_New] & "", ""), 32000), "\", "\\"), """", "\"""), UNICHAR(13), ""), UNICHAR(10), "\n"), UNICHAR(9), " ") & """" & "," & """AGING_GROUP"":" & """" & SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(LEFT(COALESCE('RENEW CONTRACT TASK'[Aging Group] & "", ""), 32000), "\", "\\"), """", "\"""), UNICHAR(13), ""), UNICHAR(10), "\n"), UNICHAR(9), " ") & """" & "," & """AGING_DAY"":" & IF(ISBLANK('RENEW CONTRACT TASK'[Aging_Days]), "null", FORMAT('RENEW CONTRACT TASK'[Aging_Days], "0")) & "," & """REJECT_FLAG"":" & """" & SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(LEFT(COALESCE('RENEW CONTRACT TASK'[REJECT_FLAG] & "", ""), 32000), "\", "\\"), """", "\"""), UNICHAR(13), ""), UNICHAR(10), "\n"), UNICHAR(9), " ") & """" & "," & """REJECT_REASON_FLAG"":" & """" & SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(LEFT(COALESCE('RENEW CONTRACT TASK'[REJECT_REASON_FLAG] & "", ""), 32000), "\", "\\"), """", "\"""), UNICHAR(13), ""), UNICHAR(10), "\n"), UNICHAR(9), " ") & """" & "," & """REJECT_REASON"":" & """" & SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(LEFT(COALESCE('RENEW CONTRACT TASK'[REJECT_REASON] & "", ""), 32000), "\", "\\"), """", "\"""), UNICHAR(13), ""), UNICHAR(10), "\n"), UNICHAR(9), " ") & """" & "," & """YEAR"":" & IF(ISBLANK(YEAR('RENEW CONTRACT TASK'[OLD_CONTRACT_END_DATE])), "null", FORMAT(YEAR('RENEW CONTRACT TASK'[OLD_CONTRACT_END_DATE]), "0")) & "," & """TASK_ID"":" & """" & SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(LEFT(COALESCE('RENEW CONTRACT TASK'[TASK_ID] & "", ""), 32000), "\", "\\"), """", "\"""), UNICHAR(13), ""), UNICHAR(10), "\n"), UNICHAR(9), " ") & """" & "," & """TASK_NO"":" & """" & SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(LEFT(COALESCE('RENEW CONTRACT TASK'[SAR_TASK_NO] & "", ""), 32000), "\", "\\"), """", "\"""), UNICHAR(13), ""), UNICHAR(10), "\n"), UNICHAR(9), " ") & """" & "," & """PROCESS_TYPE"":" & """" & SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(LEFT(COALESCE('RENEW CONTRACT TASK'[PROCESS_TYPE] & "", ""), 32000), "\", "\\"), """", "\"""), UNICHAR(13), ""), UNICHAR(10), "\n"), UNICHAR(9), " ") & """" & "," & """SUB_PROCESS_TYPE"":" & """" & SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(LEFT(COALESCE('RENEW CONTRACT TASK'[SUB_PROCESS_TYPE] & "", ""), 32000), "\", "\\"), """", "\"""), UNICHAR(13), ""), UNICHAR(10), "\n"), UNICHAR(9), " ") & """" & "," & """TASK_STATUS"":" & """" & SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(LEFT(COALESCE('RENEW CONTRACT TASK'[TASK_STATUS] & "", ""), 32000), "\", "\\"), """", "\"""), UNICHAR(13), ""), UNICHAR(10), "\n"), UNICHAR(9), " ") & """" & "," & """PC_STATUS"":" & """" & SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(LEFT(COALESCE('RENEW CONTRACT TASK'[PC_STATUS] & "", ""), 32000), "\", "\\"), """", "\"""), UNICHAR(13), ""), UNICHAR(10), "\n"), UNICHAR(9), " ") & """" & "," & """LOCATION_ID"":" & """" & SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(LEFT(COALESCE('RENEW CONTRACT TASK'[LOCATION_ID] & "", ""), 32000), "\", "\\"), """", "\"""), UNICHAR(13), ""), UNICHAR(10), "\n"), UNICHAR(9), " ") & """" & "," & """REGION"":" & """" & SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(LEFT(COALESCE('RENEW CONTRACT TASK'[GEO_REGION] & "", ""), 32000), "\", "\\"), """", "\"""), UNICHAR(13), ""), UNICHAR(10), "\n"), UNICHAR(9), " ") & """" & "," & """OLD_CONTRACT_CODE_LIST"":" & """" & SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(LEFT(COALESCE('RENEW CONTRACT TASK'[OLD_CONTRACT_CODE_LIST] & "", ""), 32000), "\", "\\"), """", "\"""), UNICHAR(13), ""), UNICHAR(10), "\n"), UNICHAR(9), " ") & """" & "," & """NEW_CONTRACT_CODE"":" & """" & SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(LEFT(COALESCE('RENEW CONTRACT TASK'[CONTRACT_CODE] & "", ""), 32000), "\", "\\"), """", "\"""), UNICHAR(13), ""), UNICHAR(10), "\n"), UNICHAR(9), " ") & """" & "," & """OLD_CONTRACT_END_DATE"":" & """" & SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(FORMAT('RENEW CONTRACT TASK'[OLD_CONTRACT_END_DATE], "dd/mm/yyyy"), "\", "\\"), """", "\"""), UNICHAR(13), ""), UNICHAR(10), "\n"), UNICHAR(9), " ") & """" & "," & """SUBMIT_SIGNED_CONTRACT_DATE"":" & """" & SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(LEFT(COALESCE('RENEW CONTRACT TASK'[SUBMIT_SIGNED_CONTRACT_DATE] & "", ""), 32000), "\", "\\"), """", "\"""), UNICHAR(13), ""), UNICHAR(10), "\n"), UNICHAR(9), " ") & """" & "," & """LATEST_UPDATE"":" & """" & SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(FORMAT('RENEW CONTRACT TASK'[LATEST_UPDATE], "dd/mm/yyyy"), "\", "\\"), """", "\"""), UNICHAR(13), ""), UNICHAR(10), "\n"), UNICHAR(9), " ") & """" & "," & """RESPONSIBLE"":" & """" & SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(LEFT(COALESCE('RENEW CONTRACT TASK'[RESPONSIBLE] & "", ""), 32000), "\", "\\"), """", "\"""), UNICHAR(13), ""), UNICHAR(10), "\n"), UNICHAR(9), " ") & """" & "," & """SUBCONTRACTOR"":" & """" & SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(LEFT(COALESCE('RENEW CONTRACT TASK'[SUBCONTRACTOR] & "", ""), 32000), "\", "\\"), """", "\"""), UNICHAR(13), ""), UNICHAR(10), "\n"), UNICHAR(9), " ") & """" & "," & """LOC_TYPE"":" & """" & SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(LEFT(COALESCE('RENEW CONTRACT TASK'[LOC_TYPE] & "", ""), 32000), "\", "\\"), """", "\"""), UNICHAR(13), ""), UNICHAR(10), "\n"), UNICHAR(9), " ") & """" & "," & """SITE_TYPE"":" & """" & SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(LEFT(COALESCE('RENEW CONTRACT TASK'[SITE_TYPE_EDIT] & "", ""), 32000), "\", "\\"), """", "\"""), UNICHAR(13), ""), UNICHAR(10), "\n"), UNICHAR(9), " ") & """" & "," & """HOST_NAME"":" & """" & SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(LEFT(COALESCE('RENEW CONTRACT TASK'[HOST_NAME] & "", ""), 32000), "\", "\\"), """", "\"""), UNICHAR(13), ""), UNICHAR(10), "\n"), UNICHAR(9), " ") & """" & "," & """LANDLOAD_NAME"":" & """" & SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(LEFT(COALESCE('RENEW CONTRACT TASK'[LANDLOAD_NAME] & "", ""), 32000), "\", "\\"), """", "\"""), UNICHAR(13), ""), UNICHAR(10), "\n"), UNICHAR(9), " ") & """" & "," & """LANDLOAD_TYPE"":" & """" & SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(LEFT(COALESCE('RENEW CONTRACT TASK'[LANDLOAD_TYPE] & "", ""), 32000), "\", "\\"), """", "\"""), UNICHAR(13), ""), UNICHAR(10), "\n"), UNICHAR(9), " ") & """" & "," & """CONTRACT_NAME"":" & """" & SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(LEFT(COALESCE('RENEW CONTRACT TASK'[CONTRACT_NAME] & "", ""), 32000), "\", "\\"), """", "\"""), UNICHAR(13), ""), UNICHAR(10), "\n"), UNICHAR(9), " ") & """" & "," & """REASON"":" & """" & SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(LEFT(COALESCE('RENEW CONTRACT TASK'[REASON] & "", ""), 32000), "\", "\\"), """", "\"""), UNICHAR(13), ""), UNICHAR(10), "\n"), UNICHAR(9), " ") & """" & "," & """REMARK"":" & """" & SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(LEFT(COALESCE('RENEW CONTRACT TASK'[REMARK] & "", ""), 32000), "\", "\\"), """", "\"""), UNICHAR(13), ""), UNICHAR(10), "\n"), UNICHAR(9), " ") & """" & "," & """MENTOR"":" & """" & SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(LEFT(COALESCE('RENEW CONTRACT TASK'[MENTOR] & "", ""), 32000), "\", "\\"), """", "\"""), UNICHAR(13), ""), UNICHAR(10), "\n"), UNICHAR(9), " ") & """" & "," & """BFKT"":" & """" & SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(LEFT(COALESCE('RENEW CONTRACT TASK'[BFKT] & "", ""), 32000), "\", "\\"), """", "\"""), UNICHAR(13), ""), UNICHAR(10), "\n"), UNICHAR(9), " ") & """" & "," & """MODIFY_USER"":" & """" & SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(LEFT(COALESCE('RENEW CONTRACT TASK'[MODIFY_USER] & "", ""), 32000), "\", "\\"), """", "\"""), UNICHAR(13), ""), UNICHAR(10), "\n"), UNICHAR(9), " ") & """" & "," & """UPDATED_DATE"":" & """" & SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(FORMAT('RENEW CONTRACT TASK'[UPDATED_DATE], "dd/mm/yyyy HH:nn"), "\", "\\"), """", "\"""), UNICHAR(13), ""), UNICHAR(10), "\n"), UNICHAR(9), " ") & """" & "," & """OLD_COMPANY_NAME"":" & """" & SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(LEFT(COALESCE('RENEW CONTRACT TASK'[OLD_COMPANY_NAME] & "", ""), 32000), "\", "\\"), """", "\"""), UNICHAR(13), ""), UNICHAR(10), "\n"), UNICHAR(9), " ") & """" & "," & """NEW_COMPANY_NAME"":" & """" & SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(LEFT(COALESCE('RENEW CONTRACT TASK'[NEW_COMPANY_NAME] & "", ""), 32000), "\", "\\"), """", "\"""), UNICHAR(13), ""), UNICHAR(10), "\n"), UNICHAR(9), " ") & """" & "}",
+          ",", 'RENEW CONTRACT TASK'[SUB_STAGE], ASC, 'RENEW CONTRACT TASK'[Sub_New], ASC, 'RENEW CONTRACT TASK'[Aging_Days], DESC, 'RENEW CONTRACT TASK'[TASK_ID], ASC)
+      & "]"
+EVALUATE
+  ROW(
+    "bodyHtml", Body_,
+    "rowsJson", Detail_,
+    // พี่ปอนด์ 08/11/2026 หัวเรื่องภาษาอังกฤษ บอกยอดตัวเดียวกับการ์ด
+    "subject", "[Urgent] Renewal Reject Flag 4 Stages " & FORMAT(Upd_, "dd/mm/yyyy") & IF(N_ = 0, " (No Reject)", " Reject " & FORMAT(N_, "#,0") & " jobs"),
+    "totalN", N_ + 0,
+    "rejectN", N_ + 0,
+    "over30N", SUMX(RowsY_, [@a4]) + 0,
+    "oddN", Odd_,
+    "vendorN", K_ + 0,
+    "stageN", CONCATENATEX(StagesT_, VAR s = [@ss] RETURN s & "=" & (SUMX(FILTER(RowsY_, [@ss] = s), [@n]) + 0), ";", [@ss], ASC),
+    "zeroVendors", CONCATENATEX(FILTER(Vendors_, VAR v = 'RENEW CONTRACT TASK'[Sub_New] RETURN SUMX(FILTER(RowsY_, [@v] = v), [@n]) = 0), 'RENEW CONTRACT TASK'[Sub_New], ", ", 'RENEW CONTRACT TASK'[Sub_New], ASC),
+    "updated", FORMAT(Upd_, "dd/mm/yyyy HH:nn"))
