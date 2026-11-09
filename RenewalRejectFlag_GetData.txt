@@ -15,7 +15,7 @@ DEFINE
   VAR YearsText_ = "2025 ถึง 2027"                  // <-- ข้อความช่วงปีในหัวเมล แก้คู่กับ Years_
   VAR Hide_ = {" No Assign", ""}                    // <-- Sub_New ที่ไม่นับเป็น Vendor
   VAR TableOnlyAll_ = TRUE()                       // <-- TRUE แบบ 7: ทุกขั้นรวม 3.0.4 มีแต่ตารางรวมสามปี ไม่มีกราฟ ไม่ขึ้น Vendor ที่ไม่มีงาน (พี่ปอนด์ 09/11/2026)
-  VAR SubTotalYear_ = TRUE()                       // <-- TRUE ตารางรวมมีแถว Sub Total ต่อปี เฉพาะปีที่มี Vendor ตั้งแต่ 2 ราย (พี่ปอนด์ 09/11/2026)
+  VAR SubTotalYear_ = FALSE()                      // <-- TRUE ตารางรวมมีแถว Sub Total ต่อปี เฉพาะปีที่มี Vendor ตั้งแต่ 2 ราย (พี่ปอนด์ 09/11/2026)
   VAR Layout6_ = FALSE()                            // <-- TRUE แบบ 6: ขั้น @chart6 (1.1.2 3.0.4) มีกราฟ ทุกขั้นใช้ตารางรวมสามปี ไม่สนสวิตช์ TableOnlySmall_ CombineYearsSmall_ (พี่ปอนด์ 08/11/2026)
   VAR TableOnlySmall_ = TRUE()                     // <-- TRUE ขั้น @small (1.1.1 1.1.2 2.0.2) มีแต่ตาราง ไม่มีกราฟ ขึ้นเฉพาะแถวที่มีงาน , 3.0.4 เหมือนเดิม (พี่ปอนด์ 08/11/2026 แบบ 3)
   VAR ShowEmptyYearSmall_ = TRUE()                // <-- TRUE ใช้คู่ CombineYearsSmall_ ปีที่ไม่มีงานยังขึ้นแถว ไม่มีงาน Reject (พี่ปอนด์ 08/11/2026 แบบ 5)
