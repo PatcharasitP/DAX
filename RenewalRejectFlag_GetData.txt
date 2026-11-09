@@ -14,6 +14,8 @@ DEFINE
   VAR Years_ = {2025, 2026, 2027}                   // <-- ปีที่สัญญาเดิมหมด (OLD_CONTRACT_END_DATE) ที่นับ พี่ปอนด์ 04/11/2026 เอาแค่ 2025 ถึง 2027
   VAR YearsText_ = "2025 ถึง 2027"                  // <-- ข้อความช่วงปีในหัวเมล แก้คู่กับ Years_
   VAR Hide_ = {" No Assign", ""}                    // <-- Sub_New ที่ไม่นับเป็น Vendor
+  VAR TableOnlyAll_ = TRUE()                       // <-- TRUE แบบ 7: ทุกขั้นรวม 3.0.4 มีแต่ตารางรวมสามปี ไม่มีกราฟ ไม่ขึ้น Vendor ที่ไม่มีงาน (พี่ปอนด์ 09/11/2026)
+  VAR SubTotalYear_ = TRUE()                       // <-- TRUE ตารางรวมมีแถว Sub Total ต่อปี เฉพาะปีที่มี Vendor ตั้งแต่ 2 ราย (พี่ปอนด์ 09/11/2026)
   VAR Layout6_ = FALSE()                            // <-- TRUE แบบ 6: ขั้น @chart6 (1.1.2 3.0.4) มีกราฟ ทุกขั้นใช้ตารางรวมสามปี ไม่สนสวิตช์ TableOnlySmall_ CombineYearsSmall_ (พี่ปอนด์ 08/11/2026)
   VAR TableOnlySmall_ = TRUE()                     // <-- TRUE ขั้น @small (1.1.1 1.1.2 2.0.2) มีแต่ตาราง ไม่มีกราฟ ขึ้นเฉพาะแถวที่มีงาน , 3.0.4 เหมือนเดิม (พี่ปอนด์ 08/11/2026 แบบ 3)
   VAR ShowEmptyYearSmall_ = TRUE()                // <-- TRUE ใช้คู่ CombineYearsSmall_ ปีที่ไม่มีงานยังขึ้นแถว ไม่มีงาน Reject (พี่ปอนด์ 08/11/2026 แบบ 5)
@@ -68,6 +70,7 @@ DEFINE
   VAR F_ = "font-family:Leelawadee UI,Leelawadee,Segoe UI,Tahoma,sans-serif;font-size:12px;"
   VAR TH_ = "<th nowrap style='background:#D9D9D9;border:1px solid #D9D9D9;padding:6px 8px;" & F_ & "font-weight:bold;color:#222;text-align:"
   VAR TD_ = "<td style='border:1px solid #D9D9D9;padding:5px 8px;" & F_ & "color:#222;"
+  VAR TS_ = "<td nowrap style='background:#F7F7F7;border:1px solid #D9D9D9;padding:5px 8px;" & F_ & "font-weight:bold;color:#222;text-align:"   // แถว Sub Total ต่อปี (พี่ปอนด์ 09/11/2026)
   VAR TF_ = "<td nowrap style='background:#F2F2F2;border:1px solid #D9D9D9;padding:6px 8px;" & F_ & "font-weight:bold;color:#222;text-align:"
   VAR Z_ = ""   // พี่ปอนด์ 04/11/2026 ช่องที่เป็น 0 เว้นว่าง
   VAR K_ = COUNTROWS(Vendors_)
@@ -85,14 +88,14 @@ DEFINE
       & Dot_ & C2_ & "'>&#9679;</span> &lt;=15 Day&nbsp;&nbsp;&nbsp; "
       & Dot_ & C3_ & "'>&#9679;</span> &lt;=30 Day&nbsp;&nbsp;&nbsp; "
       & Dot_ & C4_ & "'>&#9679;</span> &gt;30 Day</p>"
-  VAR H_ = "<div style='border-top:1px solid #E0E0E0;padding-top:14px;margin-top:18px'><p style='margin:0 0 10px;" & F_ & "font-size:13px;color:#222'>"   // พี่ปอนด์ 04/11/2026 หัวข้อส่วนไม่ต้องหนา
+  VAR H_ = "<div style='border-top:1px solid #E0E0E0;padding-top:14px;margin-top:18px'><p style='margin:0 0 10px;" & F_ & "font-size:13px;color:#222'>"   // พี่ปอนด์ 04/11/2026 หัวข้อส่วนไม่ต้องหนา , 09/11/2026 เปลี่ยนเป็นหัวขั้นตัวหนา (ใส่ที่ span ของชื่อขั้นกับยอด)
   // ก้อนละขั้น: หัวขั้น (ยอด) , กราฟสามปีแถวเดียว , ตารางทีละปี (พี่ปอนด์ 08/11/2026) สเกลแท่งเดียวทั้งเมล (ฟ้าลองสเกลแยกขั้นแล้ว งาน 1 งานในขั้นเล็กวาดยาวเท่า 56 งานในขั้นอื่น อ่านผิด)
   VAR MaxN_ = MAX(1, MAXX(RowsY_, [@n]))
   // ป้าย <!-- stage --> <!-- chart --> <!-- table --> <!-- year --> ให้ check_v2.py แยกอ่านจากเนื้อเมลที่ส่งจริง
   VAR Blocks_ =
     CONCATENATEX(StageInfo_,
       VAR s = [@s]
-      VAR TblOnly = IF(Layout6_, NOT [@chart6], TableOnlySmall_ && [@small])   // ขั้นนี้มีแต่ตาราง
+      VAR TblOnly = IF(TableOnlyAll_, TRUE(), IF(Layout6_, NOT [@chart6], TableOnlySmall_ && [@small]))   // ขั้นนี้มีแต่ตาราง
       VAR RS = FILTER(RowsY_, [@ss] = s)
       VAR ns = SUMX(RS, [@n])
       VAR k = DIVIDE(Bars_, MaxN_)
@@ -150,7 +153,9 @@ DEFINE
       VAR RSn = FILTER(RS, [@n] > 0)
       // แบบ 5 (พี่ปอนด์ 08/11/2026): ปีที่ไม่มีงานยังขึ้นเป็นแถว ไม่มีงาน Reject (สวิตช์ ShowEmptyYearSmall_)
       VAR EmptyY = IF(ShowEmptyYearSmall_, COUNTROWS(FILTER(YearsT_, VAR yy = [@yy] RETURN COUNTROWS(FILTER(RSn, [@yy] = yy)) = 0)), 0)
-      VAR NR = COUNTROWS(RSn) + EmptyY
+      // แบบ 7 (พี่ปอนด์ 09/11/2026): แถว Sub Total ต่อปี เฉพาะปีที่มี Vendor ตั้งแต่ 2 ราย นับเป็นแถวของ rowspan GROUP ด้วย
+      VAR SubY = IF(SubTotalYear_, COUNTROWS(FILTER(YearsT_, VAR yy = [@yy] RETURN COUNTROWS(FILTER(RSn, [@yy] = yy)) >= 2)), 0)
+      VAR NR = COUNTROWS(RSn) + EmptyY + SubY
       VAR Y1 = IF(ShowEmptyYearSmall_, Y0_, MINX(RSn, [@yy]))
       VAR Comb =
         "<!-- combined --><table border='1' bordercolor='#D9D9D9' cellpadding='0' cellspacing='0' style='border-collapse:collapse;border:1px solid #D9D9D9;margin-top:4px'><tr>"
@@ -173,15 +178,20 @@ DEFINE
                     & TD_ & "text-align:right'>" & IF([@a3] = 0, Z_, FORMAT([@a3], "#,0")) & "</td>"
                     & TD_ & "text-align:right'>" & IF([@a4] = 0, Z_, "<span style='color:#C00000'>" & FORMAT([@a4], "#,0") & "</span>") & "</td>"
                     & TD_ & "text-align:right'>" & FORMAT([@n], "#,0") & "</td></tr>",
-                  "", [@n], DESC, [@v], ASC)),
+                  "", [@n], DESC, [@v], ASC)
+                & IF(SubTotalYear_ && ky >= 2,
+                    "<tr>" & TS_ & "left' colspan='2'>Sub Total " & y & "</td>"
+                      & TS_ & "right'>" & FORMAT(SUMX(Ry, [@a1]), "#,#") & "</td>" & TS_ & "right'>" & FORMAT(SUMX(Ry, [@a2]), "#,#") & "</td>"
+                      & TS_ & "right'>" & FORMAT(SUMX(Ry, [@a3]), "#,#") & "</td>" & TS_ & "right;color:#C00000'>" & FORMAT(SUMX(Ry, [@a4]), "#,#") & "</td>"
+                      & TS_ & "right'>" & FORMAT(SUMX(Ry, [@n]), "#,#") & "</td></tr>", "")),
               "", [@yy], ASC)
           & "<tr>" & TF_ & "left' colspan='4'>Grand Total</td>"
           & TF_ & "right'>" & FORMAT(SUMX(RSn, [@a1]), "#,#") & "</td>" & TF_ & "right'>" & FORMAT(SUMX(RSn, [@a2]), "#,#") & "</td>"
           & TF_ & "right'>" & FORMAT(SUMX(RSn, [@a3]), "#,#") & "</td>" & TF_ & "right;color:#C00000'>" & FORMAT(SUMX(RSn, [@a4]), "#,#") & "</td>"
           & TF_ & "right'>" & FORMAT(ns, "#,#") & "</td></tr></table>"
-      RETURN "<!-- stage " & s & " -->" & H_ & "<span style='font-size:12px;color:#222'>" & SH & "</span> <span style='font-size:12px;color:#666'>(" & FORMAT(ns, "#,0") & ")</span></p>"
+      RETURN "<!-- stage " & s & " -->" & H_ & "<span style='font-size:12px;color:#222;font-weight:bold'>" & SH & "</span> <span style='font-size:12px;color:#222;font-weight:bold'>(" & FORMAT(ns, "#,0") & ")</span></p>"
         & IF(ns = 0, "<p style='margin:0;" & F_ & "font-size:13px;color:#666'>ไม่มีงาน Reject ในขั้นนี้ ทั้ง 3 ปี</p>",   // พี่ปอนด์ 08/11/2026 ขั้นที่ไม่มีงานขึ้นก้อนไว้ บอกว่าไม่มีงาน
-            IF(TblOnly, "", "<!-- chart -->" & Chart & Legend_) & "<!-- table -->" & IF(Layout6_ || (TblOnly && CombineYearsSmall_), Comb, Tables))
+            IF(TblOnly, "", "<!-- chart -->" & Chart & Legend_) & "<!-- table -->" & IF(TableOnlyAll_ || Layout6_ || (TblOnly && CombineYearsSmall_), Comb, Tables))
         & "</div>",
       "", [@s], ASC)
   // เนื้อเมลทั้งฉบับ flow เอาไปส่งตรง ๆ ไม่ต้องประกอบเอง (พี่ปอนด์ 04/11 action น้อยที่สุด)
